@@ -1,0 +1,14 @@
+# Ausgeschlossene Dateitypen (laut Aufgabe)
+*.pdf
+*.docx
+*.doc
+*.pptx
+*.ppt
+
+# Python-Cache (nicht ins Repo)
+__pycache__/
+*.pyc
+*.pyo
+
+# Claude Code lokale Einstellungen (nicht teilen)
+.claude/

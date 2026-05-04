@@ -1,0 +1,4 @@
+segment,Anzahl,Anteil,Churn_Rate,Score_Mean
+High Risk (>70%),484,22.9,62.2,0.8207809
+Medium Risk (40-70%),526,24.9,34.6,0.5639747
+Low Risk (<40%),1103,52.2,7.1,0.13268714

@@ -1,0 +1,4 @@
+Szenario,Erkannt (%),Gerettet (%),Gerettete Kunden,Geretteter Umsatz (CHF),Kampagnenkosten (CHF),Verlust (CHF),Netto-Ertrag vs. Nichtstun (CHF)
+Ohne Modell,0,0,0,0,0,3738000,0
+Konservativ,60,30,336,672000,56050,3122050,615950
+Optimistisch,80,40,598,1196000,74750,2616750,1121250
