@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DCP Pilot Dashboard · Churn Prediction</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  /* Light professional theme */
+  --bg:#f2f5fa;--bg2:#ffffff;--card:#ffffff;--card2:#f6f8fd;--card3:#edf1f8;
+  --border:#dde5f2;--border2:#c8d5ea;
+  --text:#0e1829;--text2:#455270;--text3:#8896b2;
+  --accent:#0e9f6e;--accent2:#057a55;--glow:rgba(14,159,110,0.12);
+  --red:#e02424;--amber:#c27803;--green:#0e9f6e;--cyan:#0694a2;--purple:#6c2bd9;
+  --red-dim:rgba(224,36,36,0.08);--amber-dim:rgba(194,120,3,0.1);
+  --green-dim:rgba(14,159,110,0.1);--cyan-dim:rgba(6,148,162,0.1);--purple-dim:rgba(108,43,217,0.1);
+  --sans:'Inter',system-ui,-apple-system,sans-serif;
+  --mono:'IBM Plex Mono',monospace;
+}
+html,body{height:100%;font-family:var(--sans);background:var(--bg);color:var(--text);overflow:hidden;-webkit-font-smoothing:antialiased;font-size:13px}
+::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+/* LAYOUT */
+.app{display:flex;flex-direction:column;height:100vh}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:0 22px;height:54px;border-bottom:1px solid var(--border);background:#fff;flex-shrink:0;z-index:100;box-shadow:0 1px 0 var(--border)}
+.body{display:flex;flex:1;overflow:hidden}
+.sidenav{width:196px;border-right:none;display:flex;flex-direction:column;padding:16px 0;flex-shrink:0;background:#1a2535;overflow-y:auto}
+.main{flex:1;overflow-y:auto;padding:24px 28px;background:var(--bg)}
+/* SIDEBAR NAV — dark sidebar, light text overrides */
+.nav-section{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.14em;color:#3d5068;padding:12px 16px 5px}
+.nav-item{display:flex;align-items:center;gap:9px;padding:8px 16px;cursor:pointer;font-size:12px;color:#7a8ea8;transition:all .12s;border-left:2px solid transparent;margin:1px 0}
+.nav-item:hover{background:rgba(255,255,255,.05);color:#c8d8ea}
+.nav-item.active{background:rgba(14,159,110,.12);color:#34d399;border-left-color:#0e9f6e;font-weight:600}
+.nav-num{width:24px;height:18px;border-radius:4px;background:rgba(255,255,255,.08);font-family:var(--mono);font-size:9px;font-weight:600;color:#4e6882;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .12s}
+.nav-item.active .nav-num{background:rgba(14,159,110,.2);color:#34d399}
+.nav-divider{height:1px;background:rgba(255,255,255,.06);margin:10px 16px}
+/* TOPBAR */
+.logo-mark{width:32px;height:32px;background:linear-gradient(135deg,#0e9f6e 0%,#057a55 100%);border-radius:9px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-weight:700;font-size:10px;color:#fff}
+.logo-title{font-weight:700;font-size:14px;letter-spacing:-.02em;color:#0e1829}
+.logo-sub{font-size:9px;color:var(--text3);letter-spacing:.06em;text-transform:uppercase}
+.msw{display:flex;gap:2px;background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:3px}
+.msw-btn{padding:4px 14px;border:none;border-radius:6px;font-size:10.5px;font-weight:600;font-family:var(--sans);cursor:pointer;transition:all .15s;background:transparent;color:var(--text3)}
+.msw-btn.on{background:var(--accent);color:#fff;box-shadow:0 1px 6px rgba(14,159,110,.3)}
+.live-dot{width:7px;height:7px;border-radius:50%;background:#0e9f6e;box-shadow:0 0 7px rgba(14,159,110,.6);animation:pulse 2.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.clock{font-family:var(--mono);font-size:11.5px;color:var(--text2)}
+.avatar{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#0e9f6e,#6c2bd9);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff}
+.topbar-sep{width:1px;height:22px;background:var(--border)}
+/* PAGE HEADER */
+.page-hdr{margin-bottom:22px}
+.page-title{font-size:20px;font-weight:700;margin-bottom:4px;letter-spacing:-.02em;color:var(--text)}
+.page-sub{font-size:11.5px;color:var(--text3)}
+/* KPI GRID */
+.kpi-grid{display:grid;gap:12px;margin-bottom:20px}
+.kpi-5{grid-template-columns:repeat(5,1fr)}
+.kpi-4{grid-template-columns:repeat(4,1fr)}
+.kpi-3{grid-template-columns:repeat(3,1fr)}
+.kpi{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px 20px;position:relative;overflow:hidden;transition:border-color .15s,box-shadow .15s;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.kpi:hover{border-color:var(--border2);box-shadow:0 4px 16px rgba(0,0,0,.08)}
+.kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.kpi.acc::before{background:linear-gradient(90deg,#0e9f6e,#34d399)}
+.kpi.red::before{background:linear-gradient(90deg,#b91c1c,#e02424)}
+.kpi.amb::before{background:linear-gradient(90deg,#92400e,#c27803)}
+.kpi.grn::before{background:linear-gradient(90deg,#065f46,#0e9f6e)}
+.kpi.cyn::before{background:linear-gradient(90deg,#164e63,#0694a2)}
+.kpi.pur::before{background:linear-gradient(90deg,#4c1d95,#6c2bd9)}
+.kpi-l{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.12em;color:var(--text3);margin-bottom:7px}
+.kpi-v{font-family:var(--mono);font-weight:700;line-height:1;color:var(--text)}
+.kpi-s{font-size:10.5px;color:var(--text3);margin-top:6px;line-height:1.4}
+/* CARDS */
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.card-title{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--text3);margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.card-title::before{content:'';width:3px;height:13px;border-radius:2px;background:var(--accent);flex-shrink:0}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+/* TABLE */
+.tbl{width:100%;border-collapse:collapse;font-size:12px}
+.tbl th{background:var(--card2);color:var(--text3);font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;padding:9px 12px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
+.tbl td{padding:9px 12px;border-bottom:1px solid var(--border);color:var(--text2);vertical-align:middle}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr:hover td{background:var(--card2)}
+.tbl tr.optimal td{background:rgba(14,159,110,.06);color:#057a55;font-weight:600}
+/* BADGES */
+.badge{display:inline-block;font-size:9px;font-weight:700;padding:3px 8px;border-radius:4px;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+.badge-red{background:var(--red-dim);color:var(--red)}
+.badge-amber{background:var(--amber-dim);color:var(--amber)}
+.badge-green{background:var(--green-dim);color:#057a55}
+.badge-accent{background:var(--green-dim);color:#057a55}
+.badge-cyan{background:var(--cyan-dim);color:var(--cyan)}
+.badge-purple{background:var(--purple-dim);color:var(--purple)}
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 16px;border-radius:8px;border:none;font-size:11.5px;font-weight:600;font-family:var(--sans);cursor:pointer;transition:all .15s}
+.btn-primary{background:var(--accent);color:#fff}.btn-primary:hover{background:#057a55}
+.btn-red{background:var(--red);color:#fff}.btn-red:hover{background:#b91c1c}
+.btn-ghost{background:var(--card2);color:var(--text);border:1px solid var(--border)}.btn-ghost:hover{background:var(--card3);border-color:var(--border2)}
+/* BARS */
+.bar-bg{height:6px;background:var(--card3);border-radius:3px;overflow:hidden}
+.bar-fill{height:100%;border-radius:3px;transition:width .6s ease}
+/* SHAP WATERFALL */
+.wf-bar{display:flex;align-items:center;margin-bottom:6px;gap:10px}
+.wf-label{font-size:11px;color:var(--text2);width:150px;text-align:right;flex-shrink:0;font-weight:500}
+.wf-track{flex:1;position:relative;height:20px;background:var(--card3);border-radius:3px}
+.wf-center{position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--border2)}
+.wf-rect{position:absolute;top:0;height:100%;border-radius:2px;transition:width .5s ease}
+.wf-val{font-family:var(--mono);font-size:10px;font-weight:700;width:52px;flex-shrink:0;text-align:left}
+/* RISK ROWS */
+.risk-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;margin-bottom:5px;cursor:pointer;transition:background .12s;border:1px solid transparent}
+.risk-row:hover{background:var(--card2)}
+.risk-row.sel{background:var(--green-dim);border-color:rgba(14,159,110,.2)}
+/* CHAT */
+.msg-bot{max-width:92%;padding:10px 13px;border-radius:4px 10px 10px 10px;font-size:11.5px;line-height:1.6;background:var(--card2);border:1px solid var(--border);align-self:flex-start;color:var(--text)}
+.msg-usr{max-width:92%;padding:10px 13px;border-radius:10px 4px 10px 10px;font-size:11.5px;line-height:1.6;background:var(--accent);color:#fff;align-self:flex-end}
+.chat-input-row{display:flex;gap:6px;padding:10px 12px;border-top:1px solid var(--border)}
+.ci{flex:1;background:#fff;border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--text);font-family:var(--sans);outline:none;transition:border-color .15s}
+.ci:focus{border-color:var(--accent)}
+.cs{width:34px;height:34px;border-radius:8px;background:var(--accent);border:none;cursor:pointer;color:#fff;font-size:15px;transition:background .15s}
+.cs:hover{background:#057a55}
+.typing span{display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--border2);animation:blink 1.2s ease infinite;margin:0 2px}
+.typing span:nth-child(2){animation-delay:.2s}.typing span:nth-child(3){animation-delay:.4s}
+@keyframes blink{0%,80%,100%{opacity:.2}40%{opacity:1}}
+/* OVERLAY */
+.ov{position:fixed;inset:0;background:rgba(14,24,41,.6);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;z-index:500}
+.ov-box{background:#fff;border:1px solid var(--border);border-radius:16px;padding:30px;max-width:400px;width:90%;animation:popIn .22s ease;box-shadow:0 20px 60px rgba(0,0,0,.15)}
+@keyframes popIn{from{opacity:0;transform:scale(.93)}to{opacity:1;transform:scale(1)}}
+/* STATUS */
+.key-status{font-size:9.5px;color:var(--text3);font-family:var(--mono)}
+.key-status.ok{color:var(--green)}
+/* FORMS */
+input,select,textarea{color:var(--text)!important;background:#fff!important;border:1px solid var(--border)!important;border-radius:8px!important;padding:8px 12px!important;font-size:12px!important;font-family:var(--sans)!important;outline:none!important;width:100%!important;transition:border-color .15s!important}
+input:focus,select:focus,textarea:focus{border-color:var(--accent)!important;box-shadow:0 0 0 3px rgba(14,159,110,.1)!important}
+label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--text3);margin-bottom:4px;display:block}
+.form-row{margin-bottom:12px}
+a{text-decoration:none;color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+<script>
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// MODEL DATA
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const F=["tenure","MonthlyCharges","SeniorCitizen","Contract_Month-to-month","Contract_One year","Contract_Two year","InternetService_DSL","InternetService_Fiber optic","InternetService_No","PaymentMethod_Electronic check","PaymentMethod_Mailed check","PaymentMethod_Bank transfer (automatic)","PaymentMethod_Credit card (automatic)","PaperlessBilling_Yes","PaperlessBilling_No","Partner_Yes","Partner_No","Dependents_Yes","Dependents_No","HasSupport","HasStreaming","ServiceCount","gender_Male","gender_Female","PhoneService_Yes","PhoneService_No","OnlineSecurity_Yes","TechSupport_Yes","StreamingTV_Yes","StreamingMovies_Yes"];
+const SM=[32.47,64.95,0.161,0.548,0.21,0.242,0.342,0.442,0.217,0.335,0.228,0.22,0.216,0.592,0.408,0.481,0.519,0.298,0.702,0.424,0.501,2.067,0.503,0.497,0.899,0.101,0.289,0.294,0.394,0.392];
+const SS=[24.64,30.24,0.368,0.498,0.407,0.428,0.474,0.497,0.412,0.472,0.419,0.414,0.412,0.491,0.491,0.5,0.5,0.457,0.457,0.494,0.5,1.861,0.5,0.5,0.301,0.301,0.453,0.456,0.489,0.488];
+const MODS={rf:{name:"Random Forest",short:"RF",coef:[-1.258,1.059,0.059,0.404,-0.12,-0.355,0.03,0.324,-0.425,0.255,0.022,-0.144,-0.17,0.19,-0.19,-0.004,0.004,-0.124,0.124,-0.439,-0.469,-0.855,-0.025,0.025,-0.131,0.131,-0.058,0.06,0.525,0.508],intercept:-1.749,metrics:{acc:76.9,prec:54.8,rec:74.3,f1:63.1,auc:0.844}},xgb:{name:"XGBoost (tuned)",short:"XGB",coef:[-1.066,0.778,0.023,0.322,-0.12,-0.26,-0.002,0.283,-0.339,0.201,-0.013,-0.087,-0.129,0.161,-0.161,-0.005,0.005,-0.106,0.106,-0.393,-0.363,-0.775,0.005,-0.005,-0.095,0.095,0.062,0.082,0.4,0.455],intercept:-1.349,metrics:{acc:74.8,prec:51.6,rec:79.5,f1:62.6,auc:0.841}}};
+const DL={"tenure":"Verweildauer","MonthlyCharges":"Monatl. Kosten","Contract_Month-to-month":"Monatsvertrag","Contract_Two year":"2-Jahresvertrag","Contract_One year":"Jahresvertrag","InternetService_Fiber optic":"Glasfaser","InternetService_DSL":"DSL","InternetService_No":"Kein Internet","PaymentMethod_Electronic check":"E-Check","PaymentMethod_Credit card (automatic)":"Kreditkarte","PaymentMethod_Bank transfer (automatic)":"Banküberweisung","HasSupport":"Support-Dienste","HasStreaming":"Streaming","ServiceCount":"Anz. Dienste","PaperlessBilling_Yes":"Paperless Billing","SeniorCitizen":"Senior","Partner_Yes":"Partner","Dependents_No":"Keine Angehörige","Dependents_Yes":"Angehörige"};
+function sig(x){return 1/(1+Math.exp(-x))}
+function pred(mk,fv){const m=MODS[mk];let l=m.intercept;for(let i=0;i<F.length;i++)l+=((fv[F[i]]||0)-SM[i])/SS[i]*m.coef[i];return sig(l)}
+function drvs(mk,fv){const m=MODS[mk];return F.map((f,i)=>({f,c:((fv[f]||0)-SM[i])/SS[i]*m.coef[i]})).sort((a,b)=>Math.abs(b.c)-Math.abs(a.c)).slice(0,8)}
+function bfv(p){const v={};F.forEach(f=>v[f]=0);v.tenure=p.tenure;v.MonthlyCharges=p.monthly;v.SeniorCitizen=p.senior||0;v["Contract_"+p.contract]=1;v["InternetService_"+p.internet]=1;v["PaymentMethod_"+p.payment]=1;v.PaperlessBilling_Yes=p.paperless;v.PaperlessBilling_No=1-p.paperless;v.Partner_Yes=p.partner;v.Partner_No=1-p.partner;v.Dependents_Yes=p.dep;v.Dependents_No=1-p.dep;v["gender_"+p.gender]=1;v.PhoneService_Yes=p.phone;v.PhoneService_No=1-p.phone;v.OnlineSecurity_Yes=p.onlSec;v.TechSupport_Yes=p.techSup;v.StreamingTV_Yes=p.strTV;v.StreamingMovies_Yes=p.strMov;v.HasSupport=(p.techSup||p.onlSec)?1:0;v.HasStreaming=(p.strTV||p.strMov)?1:0;v.ServiceCount=[p.onlSec,p.techSup,p.strTV,p.strMov].filter(Boolean).length;return v;}
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// CUSTOMER DATA
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const CUSTS=[
+  {id:1,name:"Reto Hölzlberger",email:"retojoel.hoelzlberger@student.unisg.ch",tenure:8,monthly:95,contract:"Month-to-month",internet:"Fiber optic",payment:"Electronic check",paperless:1,partner:0,dep:0,senior:0,gender:"Male",phone:1,onlSec:0,techSup:0,strTV:1,strMov:1,role:"Glasfaser-Neukunde"},
+  {id:2,name:"Nicolas Heierli",email:"nicolas.heierli@student.unisg.ch",tenure:36,monthly:65,contract:"One year",internet:"Fiber optic",payment:"Credit card (automatic)",paperless:1,partner:1,dep:0,senior:0,gender:"Male",phone:1,onlSec:1,techSup:0,strTV:1,strMov:0,role:"Jahresvertrag"},
+  {id:3,name:"Nicolas Bühlmann",email:"nicolas.buehlmann@student.unisg.ch",tenure:14,monthly:78,contract:"Month-to-month",internet:"Fiber optic",payment:"Electronic check",paperless:1,partner:1,dep:0,senior:0,gender:"Male",phone:1,onlSec:0,techSup:0,strTV:1,strMov:1,role:"Monatsvertrag"},
+  {id:4,name:"Leon Behrami",email:"leon.behrami@student.unisg.ch",tenure:3,monthly:82,contract:"Month-to-month",internet:"Fiber optic",payment:"Electronic check",paperless:1,partner:0,dep:0,senior:0,gender:"Male",phone:1,onlSec:0,techSup:0,strTV:0,strMov:1,role:"Neukunde"},
+  {id:5,name:"David Vogelsang",email:"david.vogelsang@student.unisg.ch",tenure:24,monthly:55,contract:"One year",internet:"DSL",payment:"Mailed check",paperless:0,partner:0,dep:0,senior:0,gender:"Male",phone:1,onlSec:0,techSup:1,strTV:1,strMov:1,role:"DSL"},
+  {id:6,name:"Simon Klos",email:"simon.klos@student.unisg.ch",tenure:52,monthly:45,contract:"Two year",internet:"DSL",payment:"Bank transfer (automatic)",paperless:0,partner:1,dep:1,senior:0,gender:"Male",phone:1,onlSec:1,techSup:1,strTV:0,strMov:0,role:"2-Jahresvertrag"},
+  {id:7,name:"Fabio Breda",email:"fabio.breda@student.unisg.ch",tenure:68,monthly:20,contract:"Two year",internet:"No",payment:"Bank transfer (automatic)",paperless:0,partner:1,dep:1,senior:0,gender:"Male",phone:1,onlSec:0,techSup:0,strTV:0,strMov:0,role:"Langzeitkunde"},
+];
+// Frau Mueller persona
+const FRAU_MUELLER={id:8,name:"Frau Mueller",email:"mueller@dcp-demo.ch",tenure:1,monthly:95,contract:"Month-to-month",internet:"Fiber optic",payment:"Electronic check",paperless:1,partner:0,dep:0,senior:0,gender:"Female",phone:1,onlSec:0,techSup:0,strTV:0,strMov:1,role:"Demo-Persona High-Risk"};
+const HERR_WEBER={id:9,name:"Herr Weber",email:"weber@dcp-demo.ch",tenure:72,monthly:19,contract:"Two year",internet:"No",payment:"Bank transfer (automatic)",paperless:0,partner:1,dep:1,senior:0,gender:"Male",phone:1,onlSec:0,techSup:0,strTV:0,strMov:0,role:"Demo-Persona Low-Risk"};
+
+// ── Exakte Modell-Scores (XGBoost + RF) aus dashboard_data.json ──────────────
+const EXACT_SCORES={
+  "Reto Hölzlberger":{rf:0.8125,xgb:0.8778,drivers:[{f:"tenure",c:0.4197},{f:"AvgMonthlySpend",c:0.3433},{f:"InternetService_Fiber optic",c:0.2911},{f:"Contract_Two year",c:0.2709},{f:"PaymentMethod_Electronic check",c:0.1681}]},
+  "Nicolas Heierli":{rf:0.2267,xgb:0.2881,drivers:[{f:"Contract_One year",c:-0.7646},{f:"PaperlessBilling_Yes",c:-0.2749},{f:"InternetService_Fiber optic",c:0.2732},{f:"tenure",c:-0.2187},{f:"StreamingMovies_Yes",c:-0.2128}]},
+  "Nicolas Bühlmann":{rf:0.7714,xgb:0.8108,drivers:[{f:"InternetService_Fiber optic",c:0.3079},{f:"Contract_Two year",c:0.272},{f:"PaymentMethod_Electronic check",c:0.2468},{f:"TotalCharges",c:0.1538},{f:"Contract_One year",c:0.1533}]},
+  "Leon Behrami":{rf:0.8927,xgb:0.8823,drivers:[{f:"tenure",c:0.4513},{f:"Contract_Two year",c:0.2648},{f:"InternetService_Fiber optic",c:0.2331},{f:"Contract_One year",c:0.1971},{f:"PaymentMethod_Electronic check",c:0.176}]},
+  "David Vogelsang":{rf:0.1481,xgb:0.1347,drivers:[{f:"Contract_One year",c:-0.6512},{f:"InternetService_Fiber optic",c:-0.3266},{f:"tenure",c:-0.312},{f:"AvgMonthlySpend",c:-0.2143},{f:"StreamingMovies_Yes",c:-0.1942}]},
+  "Simon Klos":{rf:0.0436,xgb:0.0899,drivers:[{f:"Contract_Two year",c:-1.4133},{f:"InternetService_Fiber optic",c:-0.2817},{f:"tenure",c:-0.2459},{f:"AvgMonthlySpend",c:-0.1913},{f:"HasSupport",c:-0.1819}]},
+  "Fabio Breda":{rf:0.0335,xgb:0.0212,drivers:[{f:"Contract_Two year",c:-1.333},{f:"tenure",c:-0.6156},{f:"MonthlyCharges",c:-0.4122},{f:"AvgMonthlySpend",c:-0.388},{f:"TotalCharges",c:-0.3704}]}
+};
+function getScores(mdl){return [...CUSTS].map(c=>{const fv=bfv(c);const ex=EXACT_SCORES[c.name];const rf=ex?ex.rf:pred("rf",fv),xgb=ex?ex.xgb:pred("xgb",fv);const p=mdl==="rf"?rf:xgb;const drivers=ex?ex.drivers:drvs(mdl,fv);return{...c,fv,rf,xgb,prob:p,pct:Math.round(p*100),drivers};}).sort((a,b)=>b.pct-a.pct);}
+function rco(p){return p>=70?"var(--red)":p>=40?"var(--amber)":"var(--green)"}
+function rl(p){return p>=70?"High Risk":p>=40?"Medium Risk":"Low Risk"}
+function rbc(p){return p>=70?"badge-red":p>=40?"badge-amber":"badge-green"}
+
+// DISCOUNT ENGINE
+function discountRecs(c,pct){
+  const recs=[];
+  if(c.contract==="Month-to-month"){
+    const cost2y=c.monthly*0.15*24;const newPct=Math.max(pct-35,5);const lift=pct-newPct;const save=lift/100*c.monthly*24;const roi=Math.round((save-cost2y)/cost2y*100);
+    recs.push({type:"2J-Vertrag −15%",target:"Monatsvertrag",cost:"CHF "+Math.round(cost2y),lift:lift+"%↓",clvSave:"CHF "+Math.round(save),roi:roi+"%",eligible:true,recommended:true});
+    const cost1y=c.monthly*0.10*24;const newPct1=Math.max(pct-20,5);const lift1=pct-newPct1;const save1=lift1/100*c.monthly*24;const roi1=Math.round((save1-cost1y)/cost1y*100);
+    recs.push({type:"1J-Vertrag −10%",target:"Monatsvertrag",cost:"CHF "+Math.round(cost1y),lift:lift1+"%↓",clvSave:"CHF "+Math.round(save1),roi:roi1+"%",eligible:true,recommended:false});
+  }
+  if(c.payment==="Electronic check"){
+    const cost=60;const newPct=Math.max(pct-15,5);const lift=pct-newPct;const save=lift/100*c.monthly*24;const roi=Math.round((save-cost)/cost*100);
+    recs.push({type:"Kreditkarte-Umstieg",target:"E-Check-Zahler",cost:"CHF 60 pausch.",lift:lift+"%↓",clvSave:"CHF "+Math.round(save),roi:roi+"%",eligible:true,recommended:false});
+  }
+  if(!c.techSup&&!c.onlSec&&c.internet!=="No"){
+    const cost=c.monthly*0.08*24;const newPct=Math.max(pct-12,5);const lift=pct-newPct;const save=lift/100*c.monthly*24;const roi=Math.round((save-cost)/cost*100);
+    recs.push({type:"Support-Paket −8%",target:"Kein Support",cost:"CHF "+Math.round(cost),lift:lift+"%↓",clvSave:"CHF "+Math.round(save),roi:roi+"%",eligible:true,recommended:false});
+  }
+  if(c.senior&&!c.partner&&!c.dep){
+    const cost=c.monthly*0.12*24;const newPct=Math.max(pct-18,5);const lift=pct-newPct;const save=lift/100*c.monthly*24;const roi=Math.round((save-cost)/cost*100);
+    recs.push({type:"Senior-Care −12%",target:"SeniorAlone",cost:"CHF "+Math.round(cost),lift:lift+"%↓",clvSave:"CHF "+Math.round(save),roi:roi+"%",eligible:true,recommended:false});
+  }
+  if(recs.length===0) recs.push({type:"Keine Rabatte verfügbar",eligible:false,recommended:false});
+  return recs;
+}
+
+// MODEL DISCOUNT LOOKUP
+function getModelDiscount(displayName){
+  if(!allCustomers||!allCustomers.length)return null;
+  const rec=allCustomers.find(c=>c.display_name===displayName);
+  return rec?rec.discount:null;
+}
+function renderDiscountCard(disc,xgbPct){
+  if(!disc)return`<div class="card" style="margin-top:14px"><div class="card-title">Model Discount Empfehlung</div><div style="font-size:10px;color:var(--text3)">Lade dashboard_data.json für Modelldaten...</div></div>`;
+  if(disc.discount_id==="none")return`<div class="card" style="margin-top:14px"><div class="card-title">Model Discount Empfehlung</div><div style="padding:10px;background:var(--card2);border-radius:8px;border:1px solid var(--border);font-size:10px;color:var(--text3)">Kein Rabatt mit positivem ROI verfügbar für diesen Kunden.</div></div>`;
+  const roiPct=Math.round(disc.roi*100);const liftPct=Math.round(disc.retention_lift*100);
+  const pBefore=Math.round(disc.p_churn_after*100+liftPct);const pAfter=Math.round(disc.p_churn_after*100);
+  const roiColor=roiPct>=0?"var(--green)":roiPct>=-50?"var(--amber)":"var(--red)";
+  const discColors={"contract_2y":"var(--green)","contract_1y":"var(--cyan)","payment_switch":"var(--amber)","support_bundle":"var(--accent2)","senior_care":"var(--purple)"};
+  const dc=discColors[disc.discount_id]||"var(--green)";
+  return`<div class="card" style="margin-top:14px">
+    <div class="card-title">Model Discount Empfehlung · Counterfactual-Simulation (XGBoost)</div>
+    <div style="padding:12px 14px;background:rgba(14,159,110,.06);border-radius:8px;border:1px solid rgba(14,159,110,.18);margin-bottom:10px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div style="font-size:13px;font-weight:700;color:${dc}">★ ${disc.discount_label}</div>
+        <span class="badge" style="background:${roiPct>=300?"var(--green-dim)":roiPct>=100?"var(--amber-dim)":"var(--green-dim)"};color:${roiColor}">ROI ${roiPct}%</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+        ${[["Churn vorher",pBefore+"%","var(--red)"],["Churn nachher",pAfter+"%","var(--green)"],["Retention Lift",liftPct+"%","var(--cyan)"],["Kosten (24Mt.)","CHF "+Math.round(disc.cost_total),"var(--amber)"],["Umsatz gerettet","CHF "+Math.round(disc.revenue_saved),"var(--green)"],["ROI",roiPct+"%",roiColor]].map(([l,v,c])=>`<div style="padding:8px;background:var(--card2);border-radius:6px;border:1px solid var(--border)"><div style="font-size:9px;color:var(--text3);margin-bottom:2px">${l}</div><div style="font-family:var(--mono);font-size:13px;font-weight:700;color:${c}">${v}</div></div>`).join("")}
+      </div>
+    </div>
+    <button onclick="page='discount';render()" class="btn btn-ghost" style="font-size:10px">Details in Discount Engine →</button>
+  </div>`;
+}
+
+// THRESHOLD TABLE
+const THRESH=[
+  {t:"0.00",prec:"26.5%",rec:"100.0%",f1:"41.9%",fn:0,alarme:"2'113",cfn:0,calarme:105650,cgesamt:105650,optimal:false},
+  {t:"0.05",prec:"31.8%",rec:"98.8%",f1:"48.1%",fn:7,alarme:"1'743",cfn:14000,calarme:87150,cgesamt:101150,optimal:true},
+  {t:"0.25",prec:"43.0%",rec:"93.6%",f1:"58.9%",fn:36,alarme:"1'221",cfn:72000,calarme:61050,cgesamt:133050,optimal:false},
+  {t:"0.50",prec:"51.8%",rec:"78.8%",f1:"62.5%",fn:119,alarme:"853",cfn:238000,calarme:42650,cgesamt:280650,optimal:false},
+  {t:"0.70",prec:"63.2%",rec:"54.9%",f1:"58.8%",fn:253,alarme:"487",cfn:506000,calarme:24350,cgesamt:530350,optimal:false},
+];
+
+// SURVIVAL DATA (approximate from walkthrough)
+const KM_DATA={
+  mtm:[1,0.95,0.88,0.80,0.71,0.62,0.54,0.47,0.41,0.36,0.31,0.27,0.23,0.20],
+  oy: [1,0.99,0.98,0.97,0.95,0.93,0.91,0.89,0.87,0.84,0.81,0.78,0.75,0.72],
+  ty: [1,1.00,0.99,0.99,0.98,0.98,0.97,0.97,0.96,0.96,0.95,0.95,0.94,0.93],
+};
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// STATE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+let model="xgb",page="overview",selCustIdx=0,showMailOv=false,mailStatus="idle";
+emailjs.init("rRk6aPHKn82v8MccC");
+let chatMsgs=[{r:"bot",t:"Hallo! Ich bin der DCP KI-Assistent. Ich kenne alle 7 Module des Dashboards und beantworte Fragen zu Kunden, Modellen, Discounts und Business Cases."}];
+let allCustomers=[],dbSearch="",dbSegment="all",dbContract="all",dbPage=0,dbTotalPages=1,dbSortCol="xgb",dbSortDir="desc";
+const DB_PAGE_SIZE=50;
+let chatTyping=false;
+let notes=[
+  {customer:"Reto Hölzlberger",author:"Markus Steiner",text:"Neukunde seit 8 Monaten. Kein Kontakt vom Kundenservice. Sofortiger Handlungsbedarf.",time:"Heute, 09:14"},
+  {customer:"Simon Klos",author:"Markus Steiner",text:"Jahresgespräch geführt — sehr zufrieden. Verlängerung bis 2027.",time:"Gestern, 14:30"},
+];
+let noteText="";
+let cbForm={name:"",date:new Date().toISOString().split("T")[0],time:"10:00",priority:"hoch",note:""};
+let cbOk=false;
+let clvVal=2000;
+let threshSlider=1; // index into THRESH (0.05 = optimal)
+let acceptRate=50;
+let showOv=false;
+let ovContent="";
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// API KEY
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function gKey(){return localStorage.getItem('dcp_key')||''}
+function sKey(k){localStorage.setItem('dcp_key',k.trim())}
+function showKeyModal(){
+  const existing=gKey();
+  const m=document.createElement('div');m.id='keyModal';
+  m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.85);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;z-index:999';
+  m.innerHTML=`<div style="background:var(--card);border:1px solid var(--border2);border-radius:16px;padding:32px;max-width:400px;width:90%;text-align:center">
+    <div style="font-size:32px;margin-bottom:12px">🔑</div>
+    <div style="font-family:var(--display);font-size:18px;font-weight:700;margin-bottom:6px">Anthropic API-Key</div>
+    <div style="font-size:11px;color:var(--text2);line-height:1.6;margin-bottom:16px">Für den KI-Assistenten. Key wird nur lokal gespeichert.</div>
+    <input id="ki" type="password" placeholder="sk-ant-api03-..." value="${existing}" style="margin-bottom:8px">
+    <div style="font-size:9.5px;color:var(--text3);margin-bottom:16px">Key holen: <a href="https://console.anthropic.com/settings/keys" target="_blank">console.anthropic.com</a></div>
+    <div style="display:flex;gap:8px">
+      ${existing?`<button onclick="document.getElementById('keyModal').remove()" style="flex:1;padding:10px;background:var(--card3);border:1px solid var(--border2);border-radius:8px;color:var(--text2);font-size:12px;cursor:pointer;font-family:var(--sans)">Abbrechen</button>`:''}
+      <button onclick="const k=document.getElementById('ki').value.trim();if(!k.startsWith('sk-ant')){document.getElementById('ki').style.borderColor='var(--red)';return;}sKey(k);document.getElementById('keyModal').remove();updateKeyStatus();" style="flex:1;padding:10px;background:var(--accent);border:none;border-radius:8px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--display)">Speichern</button>
+    </div>
+  </div>`;
+  document.body.appendChild(m);
+  setTimeout(()=>document.getElementById('ki')?.focus(),100);
+}
+function updateKeyStatus(){const el=document.getElementById('keyStatus');if(!el)return;const k=gKey();el.textContent=k?'✓ '+k.slice(0,12)+'...':'Kein Key';el.className='key-status'+(k?' ok':'');}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// CHATBOT
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+async function sc(text){
+  if(!text||!text.trim())return;
+  chatMsgs.push({r:"usr",t:text});
+  chatTyping=true;render();
+  const scores=getScores(model);
+  const selC=scores[selCustIdx]||scores[0];
+  const custCtx=scores.map(c=>`- ${c.name}: ${c.pct}% (${c.pct>=70?"HIGH":c.pct>=40?"MED":"LOW"}), ${c.contract==="Month-to-month"?"MtM":c.contract==="One year"?"1J":"2J"}, ${c.internet==="Fiber optic"?"Glasfaser":c.internet==="No"?"kein Internet":"DSL"}, ${c.tenure}Mt, CHF${c.monthly}${c.onlSec||c.techSup?", Support✓":""}${c.payment==="Electronic check"?", E-Check⚠":""}`).join("\n");
+  const sys=`Du bist der DCP Pilot Dashboard KI-Assistent. Hilfst Markus Steiner bei Churn-Prävention.
+Dashboard hat 7 Module: 1=KPI Übersicht, 2=Kundenanalyse, 3=Segmente & Modell, 4=Discount Engine, 5=E-Mail, 6=CLV Monitor, 7=Survival Analysis.
+Aktives Modell: ${MODS[model].name} (AUC ${MODS[model].metrics.auc}, Recall ${MODS[model].metrics.rec}%)
+Ausgewählt: ${selC.name} (${selC.pct}% Risiko)
+Kunden: ${custCtx}
+Kontext: IBM Telco 7043 Kunden, Churn 26.5%, FN=CHF2000, FP=CHF50, Targeted ROI 186%, CLV CHF2000, High-Risk 484 (22.9%) 62.2% Churn, Medium 526 (24.9%) 34.6%, Low 1103 (52.2%) 7.1%, Schwellenwert 0.05 optimal CHF101'150 Gesamtkosten, Median Survival MtM=35Mt, Cox HR MtM=30.1x.
+Antworte Deutsch, konkret, max 4 Sätze, keine Markdown-Sterne.`;
+  const history=chatMsgs.slice(-6).map(m=>({role:m.r==="usr"?"user":"assistant",content:m.t}));
+  history.push({role:"user",content:text});
+  const k=gKey();
+  if(k){
+    try{
+      const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","x-api-key":k,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:350,system:sys,messages:history})});
+      if(r.ok){const d=await r.json();chatMsgs.push({r:"bot",t:d?.content?.[0]?.text||"Keine Antwort."});chatTyping=false;render();return;}
+    }catch(e){}
+  }
+  // Fallback
+  chatMsgs.push({r:"bot",t:localBot(text,selC,getScores(model))});
+  chatTyping=false;render();
+}
+function localBot(raw,sel,sc2){
+  const t=raw.toLowerCase();
+  for(const c of sc2){const p=c.name.toLowerCase().split(" ");if(p.some(x=>x.length>3&&t.includes(x))){const pos=c.drivers.filter(d=>d.c>0).slice(0,2).map(d=>DL[d.f]||d.f).join(", ");if(t.match(/empfeh|tun|massnahm|soll|vorge|action/)){const s=[];if(c.contract==="Month-to-month")s.push("2-Jahresvertrag +15% Rabatt");if(!c.techSup&&!c.onlSec)s.push("Gratis-Support 6 Monate");if(c.payment==="Electronic check")s.push("Auto-Zahlung");return`${c.name} (${c.pct}%): ${s.join(" · ")}. Modul 4 für Discount-Details.`;}return`${c.name}: ${c.pct}% Risiko. Treiber: ${pos}. ${c.pct>=70?"Sofort handeln!":c.pct>=40?"Diese Woche.":"Stabil."} → Modul 2 für Details.`;}}
+  if(t.match(/übersicht|kpi|overview/))return`Modul 1: Ø ${Math.round(sc2.reduce((s,c)=>s+c.pct,0)/sc2.length)}% Risiko, ${sc2.filter(c=>c.pct>=70).length} High-Risk-Kunden. Revenue at Risk CHF 3.74 Mio. Targeted ROI 186%.`;
+  if(t.match(/discount|rabatt|empfeh/))return`Modul 4 (Discount Engine): 2J-Vertrag −15% (ROI 614%), 1J −10% (319%), Kreditkarte-Umstieg (191%), Support-Paket (78%). Nur Rabatte mit ROI > 0 werden empfohlen.`;
+  if(t.match(/survival|wann|timing|kaplan/))return`Modul 7: Median Survival MtM = 35 Monate, 1J > 60 Mt, 2J > 72 Mt. Cox HR = 30.1× für Monatsverträge. Sweet Spot für Intervention: 6–12 Wochen vor erwartetem Churn.`;
+  if(t.match(/segment|gruppe|cluster/))return`Modul 3: High Risk 484 Kunden (62.2% Churn, CHF 602K at risk), Medium 526 (34.6%), Low 1'103 (7.1%). Schwellenwerte: >70% High, 40-70% Medium, <40% Low.`;
+  if(t.match(/clv|wert|revenue/))return`Modul 6: CLV = CHF 2'000. Revenue at Risk: CHF 3.74 Mio. (gesamt). Targeted-Programm: 1'216 Kunden, CHF 793'768 gerettet, CHF 516'061 Netto, ROI 186%.`;
+  if(t.match(/schwellen|threshold/))return`Modul 3: Optimaler Schwellenwert t=0.05 → 98.8% Recall, CHF 101'150 Gesamtkosten (FN×2000 + Alarme×50). Standard t=0.50 kostet CHF 280'650.`;
+  return`Aktuell: ${sel.name} (${sel.pct}%). Navigation über das linke Menü. Modul 1 = KPI, 2 = Kunde, 3 = Segmente, 4 = Discount, 5 = E-Mail, 6 = CLV, 7 = Survival.`;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// MAIL
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function sendRetentionMail(c){
+  if(!c){const s=getScores(model);c=s[selCustIdx]||s[0];}
+  const ln=c.name.split(" ")[1]||c.name;
+  const sal=c.gender==="Female"?"Frau":"Herr";
+  mailStatus="sending";showMailOv=true;render();
+  emailjs.send("service_15hhfxh","template_y1lh19a",{
+    to_name:ln,to_email:c.email,salutation:sal,
+    tenure:c.tenure,monthly:c.monthly,
+    new_price:Math.round(c.monthly*0.85),
+    savings:Math.round(c.monthly*0.15*24)
+  }).then(()=>{mailStatus="sent";render();}).catch(err=>{console.error("EmailJS error:",err);mailStatus="error";window._mailErr=JSON.stringify(err?.text||err?.message||err||"unbekannt");render();});
+}
+function mailHref(c){const save=Math.round(c.monthly*0.15*24),nm=Math.round(c.monthly*0.85),ln=c.name.split(" ")[1]||c.name;return`mailto:${c.email}?subject=${encodeURIComponent("Exklusives Angebot, Herr/Frau "+ln+" — DCP Retention")}&body=${encodeURIComponent("Sehr geehrte/r Herr/Frau "+ln+"\n\nSie sind seit "+c.tenure+" Monaten bei DCP.\n\n⭐ Upgrade auf 2-Jahresvertrag — 15% Rabatt\n✅ CHF "+nm+".00/Mt. statt CHF "+c.monthly+".00/Mt.\n✅ 6 Monate gratis TechSupport & OnlineSecurity\n✅ Automatische Zahlung kostenlos\n✅ Preisgarantie\n\nErsparnis über 24 Monate: CHF "+save+".00\nAngebot 14 Tage gültig.\n\nFreundliche Grüsse\nMarkus Steiner\nDCP Retention Team")}`;}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// CALENDAR
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function makeICS(name,date,time,note){const[h,mn]=time.split(":").map(Number);const[yr,mo,da]=date.split("-").map(Number);const dt=new Date(yr,mo-1,da,h,mn),dtE=new Date(dt.getTime()+30*60000);const fmt=d=>d.toISOString().replace(/[-:]/g,"").split(".")[0]+"Z";const ics=`BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:${Date.now()}@dcp\r\nDTSTAMP:${fmt(new Date())}\r\nDTSTART:${fmt(dt)}\r\nDTEND:${fmt(dtE)}\r\nSUMMARY:Rückruf: ${name}\r\nDESCRIPTION:${note||"Retention-Gespräch"}\r\nEND:VEVENT\r\nEND:VCALENDAR`;const blob=new Blob([ics],{type:"text/calendar"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`Rueckruf_${name.split(" ")[0]}.ics`;document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// PAGE RENDERERS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function pgOverview(scores){
+  const high=scores.filter(c=>c.pct>=70),med=scores.filter(c=>c.pct>=40&&c.pct<70);
+  const avg=Math.round(scores.reduce((s,c)=>s+c.pct,0)/scores.length);
+  const m=MODS[model];
+  return`<div class="page-hdr"><div class="page-title">Executive KPI Dashboard</div><div class="page-sub">Modul 1 · Überblick Kundenloyalität & Modellperformance · IBM Telco Datensatz (7'043 Kunden)</div></div>
+  <div class="kpi-grid kpi-5">
+    <div class="kpi red"><div class="kpi-l">Gesamte Churn-Rate</div><div class="kpi-v" style="font-size:28px;color:var(--red)">26.5%</div><div class="kpi-s">1'869 von 7'043 Kunden</div></div>
+    <div class="kpi red"><div class="kpi-l">High-Risk Kunden</div><div class="kpi-v" style="font-size:28px;color:var(--red)">484</div><div class="kpi-s">Score >70% · 22.9% des Portfolios</div></div>
+    <div class="kpi amb"><div class="kpi-l">Revenue at Risk</div><div class="kpi-v" style="font-size:22px;color:var(--amber)">CHF 3.74 Mio</div><div class="kpi-s">1'869 × CLV CHF 2'000</div></div>
+    <div class="kpi grn"><div class="kpi-l">Targeted ROI</div><div class="kpi-v" style="font-size:28px;color:var(--green)">186%</div><div class="kpi-s">vs. 81% Blanket-Programm</div></div>
+    <div class="kpi acc"><div class="kpi-l">Modell AUC-ROC</div><div class="kpi-v" style="font-size:24px;color:var(--accent2)">${m.metrics.auc}</div><div class="kpi-s">${m.name} · Recall ${m.metrics.rec}%</div></div>
+  </div>
+  <div class="grid-2" style="margin-bottom:14px">
+    <div class="card"><div class="card-title">Churn-Rate nach Vertragstyp</div>
+      ${[["Month-to-month","42.7%",0.427],["One year","11.3%",0.113],["Two year","2.8%",0.028]].map(([l,v,r])=>`<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-size:11px">${l}</span><span style="font-family:var(--mono);font-size:11px;font-weight:700;color:${r>0.3?"var(--red)":r>0.1?"var(--amber)":"var(--green)"}">${v}</span></div><div class="bar-bg"><div class="bar-fill" style="width:${r*100}%;background:${r>0.3?"var(--red)":r>0.1?"var(--amber)":"var(--green)"}"></div></div></div>`).join("")}
+    </div>
+    <div class="card"><div class="card-title">Risiko-Segmentierung (Testset)</div>
+      ${[["High Risk >70%",484,62.2,"red",602],[" Medium Risk 40–70%",526,34.6,"amber",364],["Low Risk <40%",1103,7.1,"green",157]].map(([l,n,cr,c,rar])=>`<div style="margin-bottom:10px;padding:8px;background:var(--card2);border-radius:7px;border:1px solid var(--border)"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:11px;font-weight:600">${l}</span><span class="badge badge-${c}">${cr}% Churn</span></div><div style="font-size:10px;color:var(--text3);margin-top:3px">${n} Kunden · CHF ${rar}K at Risk</div></div>`).join("")}
+    </div>
+  </div>
+  <div class="grid-2">
+    <div class="card"><div class="card-title">Churn nach Tenure-Gruppe</div>
+      ${[["0–12 Monate",47.4,"red"],["13–24 Monate",28.7,"amber"],["25–48 Monate",20.4,"amber"],["49–72 Monate",9.5,"green"]].map(([l,v,c])=>`<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="font-size:11px">${l}</span><span style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--${c})">${v}%</span></div><div class="bar-bg"><div class="bar-fill" style="width:${v}%;background:var(--${c})"></div></div></div>`).join("")}
+      <div style="font-size:10px;color:var(--text3);margin-top:8px;padding:8px;background:var(--card2);border-radius:6px">⚠ Die ersten 12 Monate sind kritisch: fast 1 von 2 Neukunden kündigt.</div>
+    </div>
+    <div class="card"><div class="card-title">Szenario-Simulation</div>
+      ${[["Status Quo","0 Kunden gerettet","CHF −3.74 Mio.","red"],["Konservativ (60% Recall × 30% Save)","336 Kunden gerettet","CHF +615'950","amber"],["Optimistisch (80% Recall × 40% Save)","598 Kunden gerettet","CHF +1.12 Mio.","green"]].map(([t,k,v,c])=>`<div style="margin-bottom:10px;padding:10px;background:var(--card2);border-radius:7px;border:1px solid var(--border)"><div style="font-size:11px;font-weight:600;color:var(--${c});margin-bottom:3px">${t}</div><div style="font-size:10px;color:var(--text2)">${k}</div><div style="font-family:var(--mono);font-size:13px;font-weight:700;color:var(--${c});margin-top:2px">${v}</div></div>`).join("")}
+    </div>
+  </div>`;
+}
+
+function pgCustomer(scores){
+  const sel=scores[selCustIdx]||scores[0];
+  const wf=sel.drivers;
+  const maxAbs=Math.max(...wf.map(d=>Math.abs(d.c)),0.1);
+  const baseScore=0.039;
+  const mailLink=mailHref(sel);
+  return`<div class="page-hdr"><div class="page-title">Customer Risk Monitor</div><div class="page-sub">Modul 2 · Einzelkundenanalyse mit SHAP-Erklärung & Handlungsempfehlung</div></div>
+  <div style="display:flex;gap:6px;margin-bottom:18px;flex-wrap:wrap">
+    ${scores.map((c,i)=>`<button onclick="selCustIdx=${i};render()" style="display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:7px;border:1px solid ${i===selCustIdx?"var(--accent)":"var(--border)"};background:${i===selCustIdx?"rgba(68,114,245,.14)":"var(--card2)"};color:${i===selCustIdx?"var(--accent2)":"var(--text2)"};font-size:11px;font-weight:600;cursor:pointer;font-family:var(--sans);transition:all .12s">${c.pct>=70?`<span style="width:6px;height:6px;border-radius:50%;background:var(--red);flex-shrink:0;display:inline-block"></span>`:""}${c.name.split(" ")[0]}</button>`).join("")}
+    <button onclick="selCustIdx=7;render()" style="padding:5px 12px;border-radius:7px;border:1px solid var(--border);background:var(--card2);color:var(--text2);font-size:11px;cursor:pointer;font-family:var(--sans)">Frau Mueller</button>
+    <button onclick="selCustIdx=8;render()" style="padding:5px 12px;border-radius:7px;border:1px solid var(--border);background:var(--card2);color:var(--text2);font-size:11px;cursor:pointer;font-family:var(--sans)">Herr Weber</button>
+  </div>
+  <div class="grid-2">
+    <div>
+      <div class="card" style="margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">
+          <div><div style="font-family:var(--display);font-size:18px;font-weight:700">${sel.name}</div><div style="font-size:10px;color:var(--text3);margin-top:2px">${sel.role} · CHF ${sel.monthly}/Mt. · ${sel.tenure} Monate Tenure</div><div style="font-size:10px;color:var(--text3)">${sel.email}</div></div>
+          <div style="text-align:right"><div style="font-family:var(--mono);font-size:48px;font-weight:700;line-height:1;color:${rco(sel.pct)}">${sel.pct}%</div><span class="badge ${rbc(sel.pct)}" style="margin-top:5px;display:inline-block">${rl(sel.pct)}</span></div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
+          ${[
+            [sel.contract==="Month-to-month"?"Monatsvertrag ⚠":sel.contract==="One year"?"Jahresvertrag":"2-Jahresvertrag ✓",sel.contract==="Month-to-month"],
+            [sel.internet==="Fiber optic"?"Glasfaser ⚠":sel.internet==="No"?"Kein Internet ✓":"DSL",sel.internet==="Fiber optic"],
+            [sel.payment==="Electronic check"?"E-Check ⚠":"Auto-Zahlung ✓",sel.payment==="Electronic check"],
+            [sel.onlSec||sel.techSup?"Support ✓":"Kein Support ⚠",!sel.onlSec&&!sel.techSup],
+            [sel.tenure<12?"Neukunde ⚠":`${sel.tenure} Mt. ✓`,sel.tenure<12],
+          ].map(([l,warn])=>`<span style="font-size:9.5px;padding:3px 8px;border-radius:4px;background:${warn?"var(--red-dim)":"var(--card3)"};color:${warn?"var(--red)":"var(--text2)"};border:1px solid ${warn?"rgba(240,64,96,.2)":"var(--border)"}">${l}</span>`).join("")}
+        </div>
+        <div style="font-size:9px;color:var(--text3);margin-bottom:6px">RF vs. XGB</div>
+        ${["rf","xgb"].map(k=>{const pc=Math.round((k==="rf"?sel.rf:sel.xgb)*100);return`<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px"><span style="font-family:var(--mono);font-size:10px;width:28px;color:${model===k?"var(--text)":"var(--text3)"}">${MODS[k].short}</span><div style="flex:1;height:5px;background:var(--card3);border-radius:3px;overflow:hidden"><div style="width:${pc}%;height:100%;background:${model===k?rco(sel.pct):"var(--border2)"};border-radius:3px;transition:width .5s"></div></div><span style="font-family:var(--mono);font-size:11px;font-weight:700;width:30px;text-align:right;color:${model===k?rco(sel.pct):"var(--text3)"}">${pc}%</span></div>`;}).join("")}
+        <div style="display:flex;gap:6px;margin-top:14px;flex-wrap:wrap">
+          ${sel.pct>=55?`<button onclick="sendRetentionMail()" class="btn btn-red">📧 Retention-Mail</button>`:""}
+          <button class="btn btn-ghost" onclick="page='callback';render()">📞 Rückruf</button>
+          <button class="btn btn-ghost" onclick="page='notes';render()">📝 Notiz</button>
+          <button class="btn btn-ghost" onclick="page='discount';render()">💰 Discount</button>
+        </div>
+      </div>
+      <div class="card"><div class="card-title">Survival-Prognose</div>
+        <div style="font-size:11px;color:var(--text2);line-height:1.7">
+          ${sel.contract==="Month-to-month"?`<span style="color:var(--red);font-weight:600">⚠ Monatsvertrag:</span> Median Survival = 35 Monate. Aktuell ${sel.tenure} Monate. <strong>Kritische Phase</strong> — sofortige Intervention empfohlen.`
+          :sel.contract==="One year"?`<span style="color:var(--amber);font-weight:600">Jahresvertrag:</span> Median Survival > 60 Monate. Risiko moderat.`
+          :`<span style="color:var(--green);font-weight:600">2-Jahresvertrag:</span> Median Survival > 72 Monate. Sehr stabil — 30× geringeres Risiko als MtM-Kunden (Cox HR 30.1).`}
+        </div>
+      </div>
+    </div>
+    <div class="card"><div class="card-title">SHAP Waterfall — Warum kündigt dieser Kunde?</div>
+      <div style="font-size:9.5px;color:var(--text3);margin-bottom:10px">E[f(x)] = ${baseScore} → f(x) = ${(baseScore + wf.reduce((s,d)=>s+d.c,0)).toFixed(3)}</div>
+      ${wf.map(d=>{
+        const pos=d.c>0;const pct2=Math.min(Math.abs(d.c)/maxAbs*55,55);const label=DL[d.f]||d.f;
+        return`<div class="wf-bar"><div class="wf-label">${label}</div><div class="wf-track"><div class="wf-center"></div><div class="wf-rect" style="width:${pct2}%;background:${pos?"rgba(232,64,96,.55)":"rgba(56,184,240,.55)"};${pos?"left:50%":"right:50%"}"></div></div><span class="wf-val" style="color:${pos?"var(--red)":"var(--cyan)"}">${d.c>=0?"+":""}${d.c.toFixed(3)}</span></div>`;
+      }).join("")}
+      <div style="text-align:center;margin-top:6px;border-top:1px solid var(--border);padding-top:8px"><div style="height:2px;background:linear-gradient(90deg,var(--cyan),transparent 48%,var(--red) 52%);border-radius:1px;margin-bottom:4px"></div><div style="font-size:9px;color:var(--text3)">← Senkt Churn-Risiko &nbsp;|&nbsp; Erhöht Churn-Risiko →</div></div>
+    </div>
+  </div>
+  ${renderDiscountCard(getModelDiscount(sel.name),sel.pct)}`;
+}
+
+function pgSegments(scores){
+  const m=MODS[model];const tr=THRESH[threshSlider];
+  return`<div class="page-hdr"><div class="page-title">Segment Performance & Modell-Monitor</div><div class="page-sub">Modul 3 · Risikosegmente · Modellmetriken · Schwellenwertanalyse</div></div>
+  <div class="grid-3" style="margin-bottom:14px">
+    ${[["High Risk >70%",484,62.2,602,"red"],["Medium Risk 40–70%",526,34.6,364,"amber"],["Low Risk <40%",1103,7.1,157,"green"]].map(([l,n,cr,rar,c])=>`<div class="card"><div class="card-title">${l}</div><div style="font-family:var(--mono);font-size:28px;font-weight:700;color:var(--${c})">${n}</div><div style="font-size:10px;color:var(--text3);margin-top:3px">${(n/2113*100).toFixed(1)}% des Portfolios</div><div style="margin-top:10px;padding:8px;background:var(--card2);border-radius:6px"><div style="font-size:10px;color:var(--text2)">Validierte Churn-Rate: <strong style="color:var(--${c})">${cr}%</strong></div><div style="font-size:10px;color:var(--text2);margin-top:2px">Revenue at Risk: <strong>CHF ${rar}K</strong></div></div></div>`).join("")}
+  </div>
+  <div class="grid-2" style="margin-bottom:14px">
+    <div class="card"><div class="card-title">Modell-Performance-Vergleich</div>
+      <table class="tbl"><thead><tr><th>Modell</th><th>Acc</th><th>Prec</th><th>Recall</th><th>F1</th><th>AUC-ROC</th></tr></thead><tbody>
+        ${[["Baseline-Regel",74.4,51.9,52.0,52.0,0.673],["Log. Regression",74.4,51.2,79.3,62.2,0.844],["Random Forest",76.9,54.8,74.3,63.1,0.844],["XGBoost (tuned) ★",74.8,51.6,79.5,62.6,0.841]].map(([n,...v])=>`<tr${n.includes("★")?" class='optimal'":""}><td style="color:${n.includes("★")?"var(--green)":"var(--text)"}">
+${n}</td>${v.map(x=>`<td style="font-family:var(--mono)">${x}</td>`).join("")}</tr>`).join("")}
+      </tbody></table>
+      <div style="font-size:9.5px;color:var(--text3);margin-top:8px">★ XGBoost ist das Champion-Modell. Recall 79.5% = erkennt fast 4 von 5 Churnern. FN (CHF 2'000) ist 40× teurer als FP (CHF 50).</div>
+    </div>
+    <div class="card"><div class="card-title">Schwellenwertanalyse (Threshold)</div>
+      <div style="margin-bottom:10px">
+        <label>Schwellenwert: <strong style="color:var(--accent)">${THRESH[threshSlider].t}</strong></label>
+        <input type="range" min="0" max="4" step="1" value="${threshSlider}" oninput="threshSlider=+this.value;render()" style="background:var(--card3)!important;padding:4px 0!important;border:none!important">
+      </div>
+      <div style="overflow-x:auto">
+      <table class="tbl" style="min-width:520px"><thead><tr><th>t</th><th>Precision</th><th>Recall</th><th>F1</th><th>FN</th><th>Alarme</th><th>C(FN)</th><th>C(Alarme)</th><th>C(Gesamt)</th></tr></thead><tbody>
+        ${THRESH.map((r,i)=>`<tr class="${r.optimal?'optimal':''}"${i===threshSlider?" style='outline:2px solid var(--accent);outline-offset:-1px'":""}>
+          <td style="font-family:var(--mono);font-weight:700;color:${r.optimal?"var(--green)":"var(--text)"}">${r.t}${r.optimal?" ★":""}</td>
+          <td style="font-family:var(--mono)">${r.prec}</td>
+          <td style="font-family:var(--mono)">${r.rec}</td>
+          <td style="font-family:var(--mono)">${r.f1}</td>
+          <td style="font-family:var(--mono);color:var(--red)">${r.fn}</td>
+          <td style="font-family:var(--mono)">${r.alarme}</td>
+          <td style="font-family:var(--mono);color:var(--red)">${r.cfn.toLocaleString("de-CH")}</td>
+          <td style="font-family:var(--mono);color:var(--amber)">${r.calarme.toLocaleString("de-CH")}</td>
+          <td style="font-family:var(--mono);font-weight:700;color:${r.optimal?"var(--green)":"var(--text)"}">${r.cgesamt.toLocaleString("de-CH")}</td>
+        </tr>`).join("")}
+      </tbody></table>
+      </div>
+      <div style="font-size:9px;color:var(--text3);margin-top:6px">C(FN) = FN × CHF 2'000 · C(Alarme) = Alarme × CHF 50. t=0.05 minimiert Gesamtkosten (CHF 101'150).</div>
+      <div style="font-size:9px;color:var(--text3);margin-top:4px;padding:6px 8px;background:var(--card2);border-radius:5px;border-left:2px solid var(--accent)">Hinweis: C(Alarme) ist konservativ kalkuliert — in der Praxis werden nur Kunden mit positivem ROI-Angebot kontaktiert (bei t=0.05: 1'216 von 1'743 Alarmen). Die realen Kontaktkosten betragen CHF 60'800 statt CHF 87'150, was die Gesamtkosten auf ca. CHF 74'800 reduziert und t=0.05 als Optimum weiter stärkt.</div>
+    </div>
+  </div>`;
+}
+
+function pgDiscount(scores){
+  const sel=scores[selCustIdx]||scores[0];
+  const disc=getModelDiscount(sel.name);
+  const recs=discountRecs(sel,sel.pct);
+  const discColors={"contract_2y":"var(--green)","contract_1y":"var(--cyan)","payment_switch":"var(--amber)","support_bundle":"var(--accent2)","senior_care":"var(--purple)"};
+  return`<div class="page-hdr"><div class="page-title">Discount Recommendation Engine</div><div class="page-sub">Modul 4 · Counterfactual-Simulation · ROI-optimierte Rabattempfehlung</div></div>
+  <div class="grid-2" style="margin-bottom:14px">
+    <div class="card"><div class="card-title">Blanket vs. Targeted (Effizienzvergleich)</div>
+      ${[["Blanket-Programm","1'171 MtM-Kunden","CHF 185'241 Budget","81% ROI","CHF 150'482 Nettonutzen","amber"],["Targeted-Programm ★","1'216 Kunden (t=0.05)","CHF 277'707 Budget","186% ROI","CHF 516'061 Nettonutzen","green"]].map(([t,k,b,r,n,c])=>`<div style="padding:12px;background:var(--card2);border-radius:8px;border:1px solid var(--border);margin-bottom:8px"><div style="font-size:11px;font-weight:700;color:var(--${c});margin-bottom:6px">${t}</div>${[k,b,r,n].map(x=>`<div style="font-size:10px;color:var(--text2)">${x}</div>`).join("")}</div>`).join("")}
+      <div style="padding:10px;background:rgba(14,159,110,.08);border-radius:7px;border:1px solid rgba(14,159,110,.2)"><div style="font-size:10px;font-weight:600;color:var(--green)">Mehrnutzen Targeted: +CHF 365'579 Netto bei 474 gehaltenen Kunden</div></div>
+    </div>
+    <div class="card"><div class="card-title">Kunde: ${sel.name} · ${sel.pct}% Risiko</div>
+      ${disc&&disc.discount_id!=="none"?`
+        <div style="padding:12px;background:rgba(14,159,110,.07);border-radius:8px;border:1px solid rgba(14,159,110,.2);margin-bottom:10px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <div style="font-size:12px;font-weight:700;color:${discColors[disc.discount_id]||"var(--green)"}">★ Modell-Empfehlung: ${disc.discount_label}</div>
+            <span class="badge badge-${Math.round(disc.roi*100)>=300?"green":Math.round(disc.roi*100)>=100?"amber":"accent"}">ROI ${Math.round(disc.roi*100)}%</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:10px">
+            ${[["Churn vorher",Math.round((disc.p_churn_after+disc.retention_lift)*100)+"%","var(--red)"],["Churn nachher",Math.round(disc.p_churn_after*100)+"%","var(--green)"],["Retention Lift",Math.round(disc.retention_lift*100)+"%","var(--cyan)"],["Kosten (24Mt.)","CHF "+Math.round(disc.cost_total),"var(--amber)"],["Umsatz gerettet","CHF "+Math.round(disc.revenue_saved),"var(--green)"],["ROI",Math.round(disc.roi*100)+"%","var(--green)"]].map(([l,v,c])=>`<div style="padding:7px;background:var(--card3);border-radius:5px"><div style="color:var(--text3);margin-bottom:1px">${l}</div><div style="font-weight:700;color:${c}">${v}</div></div>`).join("")}
+          </div>
+        </div>
+        <div style="font-size:10px;color:var(--text3);margin-bottom:10px">Weitere mögliche Massnahmen (Approximation):</div>
+        ${recs.filter(r=>r.eligible).map(r=>`<div style="padding:8px;background:var(--card2);border-radius:7px;border:1px solid var(--border);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center"><span style="font-size:10px;color:var(--text2)">${r.type}</span><div style="font-size:10px;color:var(--text3)">${r.cost} · ${r.lift}</div></div>`).join("")}`:
+        disc&&disc.discount_id==="none"?`<div style="padding:10px;background:var(--card2);border-radius:8px;border:1px solid var(--border);font-size:10px;color:var(--text3);margin-bottom:10px">Kein positiver ROI verfügbar (Modell-Analyse).</div>
+        ${recs.map(r=>`<div style="padding:10px;background:${r.recommended?"rgba(14,159,110,.08)":"var(--card2)"};border-radius:8px;border:1px solid ${r.recommended?"rgba(14,159,110,.2)":"var(--border)"};margin-bottom:8px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><div style="font-size:11px;font-weight:700;color:${r.recommended?"var(--green)":"var(--text)"}">${r.recommended?"★ ":""}${r.type}</div>${r.roi?`<span class="badge badge-${parseInt(r.roi)>300?"green":parseInt(r.roi)>100?"amber":"accent"}">${r.roi} ROI</span>`:""}</div>${r.eligible?`<div style="display:flex;gap:12px;font-size:10px;color:var(--text2)"><span>Kosten: ${r.cost}</span><span>Lift: ${r.lift}</span><span>CLV: ${r.clvSave}</span></div>`:"<div style='font-size:10px;color:var(--text3)'>Nicht berechtigt</div>"}</div>`).join("")}`:
+        recs.map(r=>`<div style="padding:10px;background:${r.recommended?"rgba(14,159,110,.08)":"var(--card2)"};border-radius:8px;border:1px solid ${r.recommended?"rgba(14,159,110,.2)":"var(--border)"};margin-bottom:8px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><div style="font-size:11px;font-weight:700;color:${r.recommended?"var(--green)":"var(--text)"}">${r.recommended?"★ ":""}${r.type}</div>${r.roi?`<span class="badge badge-${parseInt(r.roi)>300?"green":parseInt(r.roi)>100?"amber":"accent"}">${r.roi} ROI</span>`:""}</div>${r.eligible?`<div style="display:flex;gap:12px;font-size:10px;color:var(--text2)"><span>Kosten: ${r.cost}</span><span>Lift: ${r.lift}</span><span>CLV: ${r.clvSave}</span></div>`:"<div style='font-size:10px;color:var(--text3)'>Nicht berechtigt</div>"}</div>`).join("")}
+      ${sel.pct>=55?`<button onclick="sendRetentionMail()" class="btn btn-red" style="width:100%;justify-content:center;margin-top:8px">📧 Retention-Mail senden</button>`:"<div style='font-size:10px;color:var(--text3);margin-top:8px'>Risiko unter 55% — kein aktives Angebot nötig.</div>"}
+    </div>
+  </div>
+  <div class="card"><div class="card-title">Rabatt-Katalog (alle 5 Typen)</div>
+    <table class="tbl"><thead><tr><th>Rabatttyp</th><th>Zielgruppe</th><th>Kosten</th><th>Typischer ROI</th><th>Churn-Treiber</th></tr></thead><tbody>
+      ${[["2J-Vertrag −15%","MtM-Kunden","15% × Monatsgebühr × 24","133%","Vertragstyp"],["1J-Vertrag −10%","MtM-Kunden","10% × Monatsgebühr × 24","100%","Vertragstyp"],["Kreditkarten-Umstieg","E-Check-Zahler","CHF 60 pauschal","~320%","Zahlungsart"],["Support-Paket −8%","Kein Support + Internet","8% × Monatsgebühr × 24","50%","Service-Bundle"],["Senior-Care −12%","SeniorAlone","12% × Monatsgebühr × 24","50%","Service-Bundle"]].map(([t,z,k,r,tr])=>`<tr><td>${t}</td><td style="color:var(--text3)">${z}</td><td style="font-family:var(--mono)">${k}</td><td style="font-family:var(--mono);color:var(--green)">${r}</td><td>${tr}</td></tr>`).join("")}
+    </tbody></table>
+  </div>`;
+}
+
+function pgEmail(scores){
+  const highRisk=scores.filter(c=>c.pct>=70);
+  return`<div class="page-hdr"><div class="page-title">Automatische Kundenkommunikation</div><div class="page-sub">Modul 5 · Personalisierte E-Mail-Vorlagen nach Risikosegment</div></div>
+  <div class="grid-2" style="margin-bottom:14px">
+    <div class="card"><div class="card-title">E-Mail-Vorlagen (3 Segmente)</div>
+      ${[["High Risk >70%","badge-red","Exklusives Angebot — nur für Sie","Dringend, konkret, personalisierter Rabatt + Frist","Vertragstyp-Upgrade, Rabatt-%, neuer Preis, Gültig-bis"],["Medium Risk 40–70%","badge-amber","Neue Services für Ihren DCP-Vertrag","Einladend, informativ, keine Dringlichkeit","Aktueller Service, empfohlener Service"],["Retention-Nachfass","badge-accent","Ihr Feedback ist uns wichtig","Freundlich, kurz, NPS-Abfrage","NPS-Link (0–10)"]].map(([s,b,betr,ton,feld])=>`<div style="padding:10px;background:var(--card2);border-radius:8px;border:1px solid var(--border);margin-bottom:8px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span class="badge ${b}">${s}</span></div><div style="font-size:10px;color:var(--text2)"><strong>Betreff:</strong> ${betr}</div><div style="font-size:10px;color:var(--text2);margin-top:2px"><strong>Ton:</strong> ${ton}</div><div style="font-size:10px;color:var(--text3);margin-top:2px">Felder: ${feld}</div></div>`).join("")}
+    </div>
+    <div class="card"><div class="card-title">High-Risk Kunden — Versandliste</div>
+      <div style="font-size:9.5px;color:var(--text3);margin-bottom:10px">${highRisk.length} Kunden mit Score >70% und positivem ROI-Rabatt</div>
+      ${highRisk.map((c,i)=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px;background:var(--card2);border-radius:7px;margin-bottom:6px;border:1px solid var(--border)"><div><div style="font-size:11px;font-weight:600">${c.name}</div><div style="font-size:9.5px;color:var(--text3)">${c.email} · ${c.pct}%</div></div><button onclick="selCustIdx=getScores(model).findIndex(x=>x.email===${JSON.stringify(c.email)});sendRetentionMail()" class="btn btn-red" style="font-size:10px;padding:5px 10px">📧 Senden</button></div>`).join("")}
+    </div>
+  </div>`;
+}
+
+function pgCLV(){
+  const rar_high=Math.round(484*0.622*clvVal);const rar_med=Math.round(526*0.346*clvVal);const rar_low=Math.round(1103*0.071*clvVal);const rar_total=rar_high+rar_med+rar_low;
+  const kons=Math.round(0.6*0.3*1869*clvVal-50*1869*0.6);
+  const opti=Math.round(0.8*0.4*1869*clvVal-50*1869*0.8);
+  return`<div class="page-hdr"><div class="page-title">Financial Performance & CLV Monitor</div><div class="page-sub">Modul 6 · Customer Lifetime Value · Revenue at Risk · Szenario-Simulation</div></div>
+  <div class="grid-2" style="margin-bottom:14px">
+    <div class="card"><div class="card-title">CLV-Parameter (interaktiv)</div>
+      <div class="form-row"><label>Customer Lifetime Value (CHF)</label><input type="range" min="500" max="5000" step="100" value="${clvVal}" oninput="clvVal=+this.value;render()"><div style="font-family:var(--mono);font-size:16px;font-weight:700;color:var(--accent2);margin-top:4px">CHF ${clvVal.toLocaleString("de-CH")}</div></div>
+      <div style="margin-top:12px">
+        ${[["Kampagnenkosten (FP)","CHF 50","var(--amber)"],["Churn Cost (FN)","CHF "+clvVal.toLocaleString("de-CH"),"var(--red)"],["FN/FP-Verhältnis",Math.round(clvVal/50)+"× teurer","var(--red)"],["Diskontzinssatz","0% (vereinfacht)","var(--text3)"]].map(([l,v,c])=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)"><span style="font-size:11px;color:var(--text2)">${l}</span><span style="font-family:var(--mono);font-size:11px;font-weight:600;color:${c}">${v}</span></div>`).join("")}
+      </div>
+    </div>
+    <div class="card"><div class="card-title">Revenue at Risk (nach Segment)</div>
+      ${[["High Risk",rar_high,"red"],["Medium Risk",rar_med,"amber"],["Low Risk",rar_low,"green"],["Gesamt",rar_total,"accent"]].map(([l,v,c])=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px;background:var(--card2);border-radius:7px;margin-bottom:6px;border:1px solid var(--border)"><span style="font-size:11px">${l}</span><span style="font-family:var(--mono);font-size:13px;font-weight:700;color:var(--${c})">CHF ${v.toLocaleString("de-CH")}</span></div>`).join("")}
+    </div>
+  </div>
+  <div class="card"><div class="card-title">Szenario-Simulation (mit angepasstem CLV = CHF ${clvVal.toLocaleString("de-CH")})</div>
+    <div class="grid-3">
+      ${[["Status Quo",0,`Alle 1'869 Churner gehen verloren`,`CHF ${(1869*clvVal).toLocaleString("de-CH")} Verlust p.a.`,"red"],["Konservativ",kons,"60% Recall × 30% Save Rate = 336 gerettete Kunden",`CHF ${kons.toLocaleString("de-CH")} Netto-Ertrag`,"amber"],["Optimistisch",opti,"80% Recall × 40% Save Rate = 598 gerettete Kunden",`CHF ${opti.toLocaleString("de-CH")} Netto-Ertrag`,"green"]].map(([t,v,d,s,c])=>`<div style="padding:12px;background:var(--card2);border-radius:8px;border:1px solid var(--border)"><div style="font-size:12px;font-weight:700;color:var(--${c});margin-bottom:6px">${t}</div><div style="font-size:10px;color:var(--text3);margin-bottom:6px">${d}</div><div style="font-family:var(--mono);font-size:14px;font-weight:700;color:var(--${c})">${s}</div></div>`).join("")}
+    </div>
+  </div>
+  <div class="card" style="margin-top:14px"><div class="card-title">Sensitivitätsanalyse: Annahmequote der Retention-Angebote</div>
+    <div style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+        <label style="font-size:11px;color:var(--text2)">Annahmequote der Kunden</label>
+        <strong style="font-family:var(--mono);font-size:18px;color:var(--accent)">${acceptRate}%</strong>
+      </div>
+      <input type="range" min="0" max="100" step="5" value="${acceptRate}" oninput="acceptRate=+this.value;render()" style="background:var(--card3)!important;padding:4px 0!important;border:none!important">
+      <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text3);margin-top:2px"><span>0% (niemand nimmt an)</span><span>50% (Hälfte)</span><span>100% (alle)</span></div>
+    </div>
+    ${(()=>{const ar=acceptRate/100;const retained=Math.round(474*ar);const revenue=Math.round(793768*ar);const cost=Math.round(277707*ar);const net=Math.round(516061*ar);
+    return`<div class="grid-2" style="gap:10px">
+      ${[["Gehaltene Kunden",retained.toLocaleString("de-CH")+" Kunden","von 391 identifizierten Hochrisiko-Kunden","accent"],["Geretteter Umsatz","CHF "+revenue.toLocaleString("de-CH"),"Umsatz über 24 Monate gerettet","green"],["Discount-Kosten","CHF "+cost.toLocaleString("de-CH"),"Kampagnenbudget bei dieser Annahmequote","amber"],["Netto-Ertrag","CHF "+net.toLocaleString("de-CH"),"Geretteter Umsatz abzügl. Discount-Kosten",net>=0?"green":"red"]].map(([l,v,d,c])=>`<div style="padding:12px;background:var(--card2);border-radius:8px;border:1px solid var(--border)"><div style="font-size:10px;color:var(--text3);margin-bottom:4px">${l}</div><div style="font-family:var(--mono);font-size:16px;font-weight:700;color:var(--${c})">${v}</div><div style="font-size:9px;color:var(--text3);margin-top:3px">${d}</div></div>`).join("")}
+    </div>
+    <div style="font-size:9px;color:var(--text3);margin-top:10px">Basis: 1'216 targeted Kunden (t=0.05) · Budget CHF 277'707 · Umsatz gerettet CHF 793'768 · Netto-Ertrag CHF 516'061 bei 100% Annahmequote.</div>`})()}
+  </div>`;
+}
+
+function pgSurvival(){
+  const W=320,H=140,pad={l:35,r:10,t:10,b:25};const uw=W-pad.l-pad.r,uh=H-pad.t-pad.b;
+  const months=[0,6,12,18,24,30,36,42,48,54,60,66,72,78];
+  function km2svg(data,col){const pts=data.map((v,i)=>`${pad.l+i/13*uw},${pad.t+uh-(v*uh)}`).join(" ");return`<polyline points="${pts}" fill="none" stroke="${col}" stroke-width="2.5" stroke-linejoin="round"/>`;}
+  const svg=`<svg width="${W}" height="${H}" style="background:var(--card2);border-radius:8px">
+    ${[0,.25,.5,.75,1].map(v=>`<line x1="${pad.l}" y1="${pad.t+uh-(v*uh)}" x2="${pad.l+uw}" y2="${pad.t+uh-(v*uh)}" stroke="var(--border)" stroke-width="0.5"/><text x="${pad.l-3}" y="${pad.t+uh-(v*uh)+4}" text-anchor="end" font-size="8" fill="var(--text3)">${Math.round(v*100)}%</text>`).join("")}
+    ${[0,12,24,36,48,60,72].map(m=>{const x=pad.l+m/78*uw;return`<line x1="${x}" y1="${pad.t}" x2="${x}" y2="${pad.t+uh}" stroke="var(--border)" stroke-width="0.5"/><text x="${x}" y="${H-8}" text-anchor="middle" font-size="8" fill="var(--text3)">${m}</text>`}).join("")}
+    ${km2svg(KM_DATA.mtm,"var(--red)")}
+    ${km2svg(KM_DATA.oy,"var(--amber)")}
+    ${km2svg(KM_DATA.ty,"var(--green)")}
+    <text x="${pad.l+uw*0.1}" y="${pad.t+uh*0.6}" font-size="8" fill="var(--red)">MtM</text>
+    <text x="${pad.l+uw*0.5}" y="${pad.t+uh*0.25}" font-size="8" fill="var(--amber)">1 Jahr</text>
+    <text x="${pad.l+uw*0.7}" y="${pad.t+uh*0.1}" font-size="8" fill="var(--green)">2 Jahre</text>
+    <text x="${W/2}" y="${H-2}" text-anchor="middle" font-size="8" fill="var(--text3)">Monate</text>
+  </svg>`;
+  return`<div class="page-hdr"><div class="page-title">Survival Analysis & Timing</div><div class="page-sub">Modul 7 · Kaplan-Meier-Kurven · Cox Hazard Ratios · Interventionsfenster</div></div>
+  <div class="grid-2" style="margin-bottom:14px">
+    <div class="card"><div class="card-title">Kaplan-Meier nach Vertragstyp</div>
+      ${svg}
+      <div style="display:flex;gap:12px;margin-top:8px">
+        ${[["MtM","35 Monate","red"],["1 Jahr",">60 Monate","amber"],["2 Jahre",">72 Monate","green"]].map(([l,v,c])=>`<div><div style="font-size:9px;color:var(--${c});font-weight:700">${l}</div><div style="font-size:9px;color:var(--text3)">Median: ${v}</div></div>`).join("")}
+      </div>
+    </div>
+    <div class="card"><div class="card-title">Cox Proportional Hazards Model</div>
+      <div style="font-size:9.5px;color:var(--text3);margin-bottom:10px">Concordance-Score: 0.85 · HR >1 = Risikotreiber, HR <1 = schützend</div>
+      ${[["Contract_Monthly","30.1×","red",95],["Contract_OneYear","5.5×","amber",30],["Internet_Fiber","3.0×","amber",20],["Payment_ECheck","1.6×","amber",12],["HasSupport","0.57×","green",8],["Partner","0.56×","green",8],["Internet_No","0.28×","green",15]].map(([f,hr,c,w])=>`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:10px;width:120px;color:var(--text2)">${f}</span><div style="flex:1;height:12px;background:var(--card2);border-radius:3px;overflow:hidden"><div style="width:${w}%;height:100%;background:var(--${c}-dim);border:1px solid var(--${c});border-radius:3px"></div></div><span style="font-family:var(--mono);font-size:10px;font-weight:700;color:var(--${c});width:36px">${hr}</span></div>`).join("")}
+    </div>
+  </div>
+  <div class="card"><div class="card-title">Interventionsfenster-Empfehlung</div>
+    <div class="grid-3">
+      ${[["Zu früh (>12 Monate)","Prognose zu ungenau","Nur Monitoring, keine Kampagne","text3"],["Sweet Spot (6–12 Wochen)","Optimales Kampagnenfenster","Jetzt handeln — 4–6 Wochen Vorlauf einplanen","green"],["Zu spät (<1 Woche)","Kein Handlungsspielraum","Automatische Eskalation an Führung","red"]].map(([t,s,a,c])=>`<div style="padding:12px;background:var(--card2);border-radius:8px;border:1px solid ${c==="green"?"rgba(14,159,110,.25)":c==="red"?"rgba(240,64,96,.3)":"var(--border)"}"><div style="font-size:11px;font-weight:700;color:var(--${c});margin-bottom:4px">${t}</div><div style="font-size:10px;color:var(--text3);margin-bottom:4px">${s}</div><div style="font-size:10px;color:var(--text2)">${a}</div></div>`).join("")}
+    </div>
+  </div>`;
+}
+
+function pgCallback(scores){
+  return`<div class="page-hdr"><div class="page-title">Rückruf planen</div><div class="page-sub">Modul 2 · Kundenbetreuer-Workflow · Kalender-Export (.ics)</div></div>
+  <div class="grid-2">
+    <div class="card">
+      ${cbOk?`<div style="background:var(--green-dim);border:1px solid rgba(14,159,110,.2);border-radius:10px;padding:24px;text-align:center"><div style="font-size:32px;margin-bottom:10px">✅</div><div style="font-family:var(--display);font-size:16px;font-weight:700;color:var(--green);margin-bottom:6px">Rückruf geplant!</div><div style="font-size:11px;color:var(--text2);line-height:1.7">${cbForm.name}<br>${cbForm.date}, ${cbForm.time} Uhr · ${cbForm.priority}${cbForm.note?`<br><em>${cbForm.note}</em>`:""}</div><button onclick="cbOk=false;render()" style="margin-top:14px;padding:8px 20px;background:var(--accent);border:none;border-radius:7px;color:#fff;font-size:11px;font-weight:600;cursor:pointer;font-family:var(--sans)">Neuer Rückruf</button></div>`:`
+      <div class="card-title">Rückruf planen</div>
+      <div class="form-row"><label>Kunde</label><select onchange="cbForm.name=this.value"><option value="">— Bitte wählen —</option>${[...CUSTS,FRAU_MUELLER,HERR_WEBER].map(c=>`<option value="${c.name}" ${cbForm.name===c.name?"selected":""}>${c.name}</option>`).join("")}</select></div>
+      <div class="form-row"><label>Datum</label><input type="date" value="${cbForm.date}" min="${new Date().toISOString().split("T")[0]}" onchange="cbForm.date=this.value"></div>
+      <div class="form-row"><label>Uhrzeit</label><input type="time" value="${cbForm.time}" onchange="cbForm.time=this.value"></div>
+      <div class="form-row"><label>Priorität</label><select onchange="cbForm.priority=this.value"><option value="hoch" ${cbForm.priority==="hoch"?"selected":""}>🔴 Hoch</option><option value="mittel" ${cbForm.priority==="mittel"?"selected":""}>🟡 Mittel</option><option value="niedrig" ${cbForm.priority==="niedrig"?"selected":""}>🟢 Niedrig</option></select></div>
+      <div class="form-row"><label>Anmerkung</label><textarea rows="2" onchange="cbForm.note=this.value" style="height:55px!important">${cbForm.note}</textarea></div>
+      <button onclick="if(!cbForm.name){alert('Kunden wählen');return;}makeICS(cbForm.name,cbForm.date,cbForm.time,cbForm.note);cbOk=true;render()" style="width:100%;padding:10px;background:var(--accent);border:none;border-radius:8px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--display);margin-top:4px">📞 Einplanen & Kalender öffnen</button>`}
+    </div>
+    <div class="card"><div class="card-title">Kundenbetreuer-Workflow</div>
+      ${[["1","Kunden-ID eingeben","Modul 2 öffnen → Churn-Score sofort sichtbar"],["2","SHAP lesen","Haupttreiber verstehen → Was treibt das Risiko?"],["3","Rabatt ermitteln","Modul 4 → ROI-optimalen Rabatt auswählen"],["4","Gespräch führen","Empfehlung in Kundengespräch einbringen"],["5","Ergebnis erfassen","Kampagnen-Tracker in Modul 6 aktualisieren"]].map(([n,t,d])=>`<div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)"><div style="width:22px;height:22px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0">${n}</div><div><div style="font-size:11px;font-weight:600">${t}</div><div style="font-size:10px;color:var(--text3)">${d}</div></div></div>`).join("")}
+    </div>
+  </div>`;
+}
+
+function pgNotes(scores){
+  const sel=scores[selCustIdx]||scores[0];
+  const selNotes=notes.filter(n=>n.customer===sel.name);
+  return`<div class="page-hdr"><div class="page-title">Team-Notizen</div><div class="page-sub">Modul 2 · Kundenspezifische Notizen von ${sel.name.split(" ")[0]}</div></div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">Notiz für ${sel.name.split(" ")[0]} hinzufügen</div>
+      <textarea id="nt" rows="3" placeholder="Beobachtung, Gesprächsnotiz..." style="height:80px!important;margin-bottom:8px">${noteText}</textarea>
+      <button onclick="const el=document.getElementById('nt');if(el&&el.value.trim()){const now=new Date();notes.unshift({customer:'${sel.name}',author:'Markus Steiner',text:el.value.trim(),time:'Heute, '+now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0')});render();}" style="width:100%;padding:8px;background:var(--accent);border:none;border-radius:7px;color:#fff;font-size:11px;font-weight:600;cursor:pointer;font-family:var(--sans)">+ Notiz hinzufügen</button>
+      ${selNotes.length===0?`<div style="font-size:11px;color:var(--text3);text-align:center;padding:20px">Noch keine Notizen für ${sel.name.split(" ")[0]}</div>`:""}
+      <div style="margin-top:12px">${selNotes.map(n=>`<div style="background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px"><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-size:9px;font-weight:700;color:var(--accent2);text-transform:uppercase">${n.author}</span><span style="font-size:9px;color:var(--text3);font-family:var(--mono)">${n.time}</span></div><div style="font-size:11.5px;color:var(--text2);line-height:1.5">${n.text}</div></div>`).join("")}</div>
+    </div>
+    <div class="card"><div class="card-title">Alle Kunden auswählen</div>
+      ${scores.map((c,i)=>`<div onclick="selCustIdx=${i};render()" style="display:flex;align-items:center;justify-content:space-between;padding:8px;background:${i===selCustIdx?"rgba(14,159,110,.1)":"var(--card2)"};border-radius:7px;margin-bottom:6px;cursor:pointer;border:1px solid ${i===selCustIdx?"var(--accent)":"var(--border)"}"><div><div style="font-size:11px;font-weight:600">${c.name}</div><div style="font-size:9.5px;color:var(--text3)">${notes.filter(n=>n.customer===c.name).length} Notiz(en)</div></div><span class="badge ${rbc(c.pct)}">${c.pct}%</span></div>`).join("")}
+    </div>
+  </div>`;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// KUNDENDATENBANK (alle 7'043 Kunden)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function pgDatabase(){
+  if(!allCustomers.length)return`<div class="page-hdr"><div class="page-title">Kundendatenbank</div><div class="page-sub">Alle 7'043 Kunden · Exakte Modellscores</div></div><div class="card" style="text-align:center;padding:48px 20px"><div style="font-size:36px;margin-bottom:12px">⏳</div><div style="font-size:14px;font-weight:600">Kundendaten werden geladen...</div><div style="font-size:11px;color:var(--text3);margin-top:6px">Stelle sicher, dass der lokale Server läuft:<br><code style="font-family:var(--mono);background:var(--card2);padding:2px 6px;border-radius:4px">python -m http.server 8080</code></div></div>`;
+  let filt=allCustomers;
+  if(dbSegment!=="all")filt=filt.filter(c=>c.risk_segment===dbSegment);
+  if(dbContract!=="all")filt=filt.filter(c=>c.raw_features.Contract===dbContract);
+  if(dbSearch){const s=dbSearch.toLowerCase();filt=filt.filter(c=>c.customerID.toLowerCase().includes(s)||(c.display_name&&c.display_name.toLowerCase().includes(s)));}
+  const sortVal=c=>{
+    if(dbSortCol==="xgb")return c.xgb_score;
+    if(dbSortCol==="rf")return c.rf_score;
+    if(dbSortCol==="tenure")return c.raw_features.tenure;
+    if(dbSortCol==="monthly")return c.raw_features.MonthlyCharges;
+    if(dbSortCol==="contract")return c.raw_features.Contract;
+    if(dbSortCol==="internet")return c.raw_features.InternetService;
+    if(dbSortCol==="risk"){const m={"High Risk":3,"Medium Risk":2,"Low Risk":1};return m[c.risk_segment]||0;}
+    return 0;
+  };
+  filt=[...filt].sort((a,b)=>{const av=sortVal(a),bv=sortVal(b);const d=typeof av==="string"?av.localeCompare(bv):av-bv;return dbSortDir==="asc"?d:-d;});
+  const total=filt.length;
+  dbTotalPages=Math.max(1,Math.ceil(total/DB_PAGE_SIZE));
+  if(dbPage>=dbTotalPages)dbPage=0;
+  const start=dbPage*DB_PAGE_SIZE;
+  const rows=filt.slice(start,start+DB_PAGE_SIZE);
+  const sb=(seg,lbl)=>`<button onclick="dbSegment='${seg}';dbPage=0;render()" style="padding:5px 11px;border-radius:6px;border:1px solid ${dbSegment===seg?"var(--accent)":"var(--border)"};background:${dbSegment===seg?"var(--green-dim)":"var(--card2)"};color:${dbSegment===seg?"var(--accent2)":"var(--text2)"};font-size:10px;font-weight:600;cursor:pointer;font-family:var(--sans)">${lbl}</button>`;
+  const th=(col,lbl)=>{const act=dbSortCol===col;const ind=act?(dbSortDir==="desc"?" ↓":" ↑"):" ↕";return`<th onclick="if(dbSortCol==='${col}'){dbSortDir=dbSortDir==='desc'?'asc':'desc';}else{dbSortCol='${col}';dbSortDir='desc';}dbPage=0;render()" style="cursor:pointer;user-select:none;white-space:nowrap;color:${act?"var(--accent2)":""}"><span>${lbl}</span><span style="font-family:var(--mono);font-size:8px;opacity:${act?1:0.4}">${ind}</span></th>`;};
+  return`<div class="page-hdr"><div class="page-title">Kundendatenbank</div><div class="page-sub">Alle ${total.toLocaleString("de-CH")} Kunden gefunden · Exakte XGBoost & Random Forest Scores · Spalten anklicken zum Sortieren</div></div>
+  <div class="card" style="margin-bottom:12px">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <input type="text" placeholder="🔍  Kunden-ID oder Name..." value="${dbSearch}" oninput="dbSearch=this.value;dbPage=0;render()" style="width:200px!important;flex-shrink:0"/>
+      <div style="display:flex;gap:4px;flex-wrap:wrap">${sb("all","Alle")} ${sb("High Risk","🔥 High Risk")} ${sb("Medium Risk","⚠ Medium")} ${sb("Low Risk","✓ Low Risk")}</div>
+      <select onchange="dbContract=this.value;dbPage=0;render()" style="width:150px!important"><option value="all" ${dbContract==="all"?"selected":""}>Alle Verträge</option><option value="Month-to-month" ${dbContract==="Month-to-month"?"selected":""}>Month-to-month</option><option value="One year" ${dbContract==="One year"?"selected":""}>One year</option><option value="Two year" ${dbContract==="Two year"?"selected":""}>Two year</option></select>
+      <span style="font-size:10px;color:var(--text3);margin-left:auto;font-family:var(--mono)">${start+1}–${Math.min(start+DB_PAGE_SIZE,total)} / ${total.toLocaleString("de-CH")}</span>
+    </div>
+  </div>
+  <div class="card" style="padding:0;overflow:hidden;margin-bottom:12px">
+    <table class="tbl">
+      <thead><tr><th>Kunden-ID</th><th>Name</th>${th("risk","Risiko")}${th("xgb","XGB %")}${th("rf","RF %")}${th("contract","Vertrag")}${th("internet","Internet")}${th("tenure","Tenure")}${th("monthly","CHF/Mt.")}<th>Top-Treiber</th><th>Rabatt</th></tr></thead>
+      <tbody>${rows.map(c=>{
+        const xp=Math.round(c.xgb_score*100),rp=Math.round(c.rf_score*100);
+        const nm=c.display_name?`<span style="font-size:9px;color:var(--accent2);font-weight:700;display:block">${c.display_name}</span>`:"";
+        const td=c.top_drivers[0];
+        const tl=DL[td&&td.feature]||td&&td.feature||"";
+        const tc=td&&td.direction==="up"?"var(--red)":"var(--green)";
+        const ti=td&&td.direction==="up"?"↑":"↓";
+        const co=c.raw_features.Contract==="Month-to-month"?"MtM ⚠":c.raw_features.Contract==="One year"?"1J":"2J ✓";
+        const inet=c.raw_features.InternetService==="Fiber optic"?"Glasfaser":c.raw_features.InternetService==="DSL"?"DSL":"Kein";
+        const cc=c.raw_features.Contract==="Month-to-month"?"var(--red)":"var(--text2)";
+        const rowbg=c.display_name?"background:rgba(14,159,110,.06);":"";
+        const disc=c.discount;
+        const discLabels={"contract_2y":["2J-Vertrag","green"],"contract_1y":["1J-Vertrag","cyan"],"payment_switch":["Kreditkarte","amber"],"support_bundle":["Support","accent"],"senior_care":["Senior-Care","purple"]};
+        const dl=disc&&discLabels[disc.discount_id];
+        const discBadge=dl?`<span class="badge badge-${dl[1]}" style="white-space:nowrap">${dl[0]}</span><div style="font-size:8px;color:var(--text3);font-family:var(--mono)">ROI ${Math.round(disc.roi*100)}%</div>`:`<span style="font-size:10px;color:var(--text3)">—</span>`;
+        return`<tr style="${rowbg}"><td><span style="font-family:var(--mono);font-size:10px;color:var(--text3)">${c.customerID}</span></td><td>${nm}</td><td><span class="badge ${rbc(xp)}">${xp>=70?"High":xp>=40?"Med":"Low"}</span></td><td><span style="font-family:var(--mono);font-size:11px;font-weight:700;color:${rco(xp)}">${xp}%</span></td><td><span style="font-family:var(--mono);font-size:10px;color:var(--text3)">${rp}%</span></td><td><span style="font-size:10px;color:${cc}">${co}</span></td><td style="font-size:10px">${inet}</td><td><span style="font-family:var(--mono);font-size:10px">${c.raw_features.tenure}</span></td><td><span style="font-family:var(--mono);font-size:10px">${c.raw_features.MonthlyCharges}</span></td><td><span style="font-size:9.5px;color:${tc}">${ti} ${tl}</span></td><td>${discBadge}</td></tr>`;
+      }).join("")}</tbody>
+    </table>
+  </div>
+  <div style="display:flex;justify-content:center;align-items:center;gap:8px">
+    <button onclick="if(dbPage>0){dbPage--;render()}" style="padding:5px 16px;border-radius:6px;border:1px solid var(--border);background:var(--card2);color:var(--text2);font-size:10px;font-weight:600;cursor:pointer;font-family:var(--sans);opacity:${dbPage===0?0.3:1}">← Zurück</button>
+    <span style="font-size:10px;color:var(--text3);font-family:var(--mono)">Seite ${dbPage+1} / ${dbTotalPages}</span>
+    <button onclick="if(dbPage<dbTotalPages-1){dbPage++;render()}" style="padding:5px 16px;border-radius:6px;border:1px solid var(--border);background:var(--card2);color:var(--text2);font-size:10px;font-weight:600;cursor:pointer;font-family:var(--sans);opacity:${dbPage>=dbTotalPages-1?0.3:1}">Weiter →</button>
+  </div>`;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// MAIN RENDER
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function render(){
+  const scores=getScores(model);
+  const sel=scores[selCustIdx]||scores[0];
+  // Handle persona overrides
+  if(selCustIdx===7){const fv=bfv(FRAU_MUELLER);scores.push({...FRAU_MUELLER,fv,rf:pred("rf",fv),xgb:pred("xgb",fv),prob:pred(model,fv),pct:Math.round(pred(model,fv)*100),drivers:drvs(model,fv)});}
+  if(selCustIdx===8){const fv=bfv(HERR_WEBER);scores.push({...HERR_WEBER,fv,rf:pred("rf",fv),xgb:pred("xgb",fv),prob:pred(model,fv),pct:Math.round(pred(model,fv)*100),drivers:drvs(model,fv)});}
+  const selFinal=(selCustIdx>=7?scores[scores.length-1]:scores[selCustIdx])||scores[0];
+
+  const navItems=[
+    ["overview","01","KPI Übersicht","Modul 1"],
+    ["customer","02","Kundenanalyse","Modul 2"],
+    ["segments","03","Segmente & Modell","Modul 3"],
+    ["discount","04","Discount Engine","Modul 4"],
+    ["email","05","Kommunikation","Modul 5"],
+    ["clv","06","CLV Monitor","Modul 6"],
+    ["survival","07","Survival Analysis","Modul 7"],
+    null,
+    ["database","DB","Kundendatenbank","Alle 7'043"],
+    null,
+    ["callback","↩","Rückruf planen",""],
+    ["notes","≡","Team-Notizen",""],
+  ];
+
+  let pageContent="";
+  if(page==="overview")pageContent=pgOverview(scores);
+  else if(page==="customer")pageContent=pgCustomer(scores);
+  else if(page==="segments")pageContent=pgSegments(scores);
+  else if(page==="discount")pageContent=pgDiscount(scores);
+  else if(page==="email")pageContent=pgEmail(scores);
+  else if(page==="clv")pageContent=pgCLV();
+  else if(page==="survival")pageContent=pgSurvival();
+  else if(page==="database")pageContent=pgDatabase();
+  else if(page==="callback")pageContent=pgCallback(scores);
+  else if(page==="notes")pageContent=pgNotes(scores);
+
+  const now=new Date();
+  document.getElementById("app").innerHTML=`
+  <div class="topbar">
+    <div style="display:flex;align-items:center;gap:12px">
+      <div class="logo-mark">DCP</div>
+      <div><div class="logo-title">Retention Cockpit</div><div class="logo-sub">Churn Intelligence · APM HSG 2026</div></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <div style="display:flex;align-items:center;gap:5px"><div class="live-dot"></div><span style="font-size:9px;color:var(--green);font-weight:700;letter-spacing:.06em">LIVE</span></div>
+      <div class="topbar-sep"></div>
+      <div class="msw"><button class="msw-btn ${model==="rf"?"on":""}" onclick="model='rf';render()">Random Forest</button><button class="msw-btn ${model==="xgb"?"on":""}" onclick="model='xgb';render()">XGBoost</button></div>
+      <div class="topbar-sep"></div>
+      <span id="keyStatus" class="key-status ${gKey()?"ok":""}"> ${gKey()?"✓ "+gKey().slice(0,12)+"...":"Kein Key"}</span>
+      <button onclick="showKeyModal()" style="font-size:9.5px;padding:4px 10px;background:var(--card2);border:1px solid var(--border);border-radius:6px;color:var(--text3);cursor:pointer;font-family:var(--sans)">Key</button>
+      <div class="topbar-sep"></div>
+      <div class="clock" id="clk">${now.toLocaleTimeString("de-CH",{hour:"2-digit",minute:"2-digit",second:"2-digit"})}</div>
+      <div class="avatar">MS</div>
+    </div>
+  </div>
+  <div class="body">
+    <div class="sidenav">
+      <div class="nav-section">Navigation</div>
+      ${navItems.map(item=>item===null?`<div class="nav-divider"></div>`:
+        `<div class="nav-item ${page===item[0]?"active":""}" onclick="page='${item[0]}';render()"><div class="nav-num">${item[1]}</div><div><div style="line-height:1.3">${item[2]}</div>${item[3]?`<div style="font-size:9px;color:var(--text3);margin-top:1px">${item[3]}</div>`:""}</div></div>`
+      ).join("")}
+      <div style="flex:1"></div>
+      <div style="padding:12px 16px;border-top:1px solid rgba(255,255,255,.07)">
+        <div style="font-size:9px;color:#3d5068;line-height:1.8">IBM Telco · 7'043 Kunden<br>XGBoost AUC 0.841 · Recall 79.5%<br><span style="color:#2d3e50">Gruppe 12 · HSG 2026</span></div>
+      </div>
+    </div>
+    <div class="main" id="mainContent">${pageContent}</div>
+    <div style="width:282px;border-left:1px solid var(--border);display:flex;flex-direction:column;background:#fff">
+      <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--text3)">KI-Assistent</div>
+        <div style="display:flex;align-items:center;gap:5px"><div style="width:6px;height:6px;border-radius:50%;background:var(--green)"></div><span style="font-size:9px;color:var(--green);font-weight:600">Online</span></div>
+      </div>
+      <div id="chatMsgs" style="flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:7px">
+        ${chatMsgs.map(m=>`<div class="${m.r==="bot"?"msg-bot":"msg-usr"}">${m.t}</div>`).join("")}
+        ${chatTyping?`<div class="msg-bot"><div class="typing"><span></span><span></span><span></span></div></div>`:""}
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px;padding:8px 12px;border-top:1px solid var(--border)">
+        ${[["Risiko","Wer hat das höchste Risiko?"],["Discount","Bester Rabatt für aktuellen Kunden?"],["Wann?","Wann soll ich handeln?"],["KPIs","Erkläre die wichtigsten KPIs"],["Modell","Warum XGBoost statt RF?"]].map(([l,q])=>`<button onclick="sc('${q}')" style="font-size:10px;padding:4px 9px;border-radius:5px;background:var(--card2);border:1px solid var(--border);color:var(--text2);cursor:pointer;font-family:var(--sans);transition:all .12s" onmouseover="this.style.borderColor='var(--border2)';this.style.color='var(--text)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text2)'">${l}</button>`).join("")}
+      </div>
+      <div class="chat-input-row">
+        <input class="ci" id="ci" placeholder="Frage stellen..." onkeydown="if(event.key==='Enter'){sc(this.value);this.value=''}">
+        <button class="cs" onclick="const i=document.getElementById('ci');sc(i.value);i.value=''">↑</button>
+      </div>
+    </div>
+  </div>
+  ${showMailOv?`<div class="ov" onclick="if(mailStatus!=='sending'){showMailOv=false;mailStatus='idle';render()}"><div class="ov-box" onclick="event.stopPropagation()">
+    ${mailStatus==="sending"?`<div style="font-size:32px;margin-bottom:10px">⏳</div><div style="font-family:var(--display);font-size:16px;font-weight:700;margin-bottom:6px">Mail wird gesendet...</div><div style="font-size:11px;color:var(--text3)">Bitte warten</div>`:""}
+    ${mailStatus==="sent"?`<div style="font-size:32px;margin-bottom:10px">✅</div><div style="font-family:var(--display);font-size:16px;font-weight:700;margin-bottom:6px;color:var(--green)">Mail erfolgreich gesendet!</div><div style="font-size:11px;color:var(--text2);margin-bottom:12px">Die Retention-Mail wurde zugestellt.</div><div style="background:var(--card2);border-radius:7px;padding:10px;font-size:10px;color:var(--text3);margin-bottom:14px">An: ${selFinal.email}<br>CHF ${Math.round(selFinal.monthly*0.15*24)} Ersparnis · 6 Mt. Gratis-Support</div><button onclick="showMailOv=false;mailStatus='idle';render()" style="padding:8px 20px;background:var(--green);border:none;border-radius:7px;color:#fff;font-size:11px;font-weight:700;cursor:pointer;font-family:var(--display)">Schliessen</button>`:""}
+    ${mailStatus==="error"?`<div style="font-size:32px;margin-bottom:10px">❌</div><div style="font-family:var(--display);font-size:16px;font-weight:700;margin-bottom:6px;color:var(--red)">Fehler beim Senden</div><div style="font-size:11px;color:var(--text2);margin-bottom:8px">Fehlermeldung von EmailJS:</div><div style="background:var(--card2);border-radius:7px;padding:10px;font-size:10px;color:var(--red);font-family:var(--mono);margin-bottom:14px;word-break:break-all">${window._mailErr||'–'}</div><button onclick="showMailOv=false;mailStatus='idle';render()" style="padding:8px 20px;background:var(--accent);border:none;border-radius:7px;color:#fff;font-size:11px;font-weight:700;cursor:pointer;font-family:var(--display)">Schliessen</button>`:""}
+  </div></div>`:""}
+  `;
+  setTimeout(()=>{const el=document.getElementById("chatMsgs");if(el)el.scrollTop=el.scrollHeight;},50);
+}
+setInterval(()=>{const el=document.getElementById("clk");if(el)el.textContent=new Date().toLocaleTimeString("de-CH",{hour:"2-digit",minute:"2-digit",second:"2-digit"});},1000);
+if(!gKey())setTimeout(showKeyModal,800);
+fetch("dashboard_data.json").then(r=>r.json()).then(d=>{allCustomers=d.customers;render();}).catch(()=>{});
+render();
+</script>
+</body>
+</html>
