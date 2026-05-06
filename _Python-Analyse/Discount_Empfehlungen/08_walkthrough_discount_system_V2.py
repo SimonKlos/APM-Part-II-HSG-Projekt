@@ -123,7 +123,7 @@ blanket_clv_saved = sum(blanket_revenues)
 blanket_net       = blanket_clv_saved - blanket_budget
 blanket_roi       = blanket_net / blanket_budget
 
-targeted_sub      = recs_df[(recs_df["p_churn_original"] > 0.5) & (recs_df["discount_id"] != "none")]
+targeted_sub      = recs_df[(recs_df["p_churn_original"] > 0.05) & (recs_df["discount_id"] != "none")]
 N_targeted        = len(targeted_sub)
 targeted_budget   = targeted_sub["cost_annual"].sum()
 targeted_retained = targeted_sub["retention_lift"].sum()
@@ -915,6 +915,103 @@ for title_r, desc_r in recommendations:
     story.append(body(f"<b>{title_r}</b>"))
     story.append(body(desc_r))
     story.append(spacer(0.1))
+
+story.append(spacer(0.4))
+
+# ── Abschnitt 13 ─────────────────────────────────────────────────────────────
+story += h1("13. Zwei-Stufen-Entscheidung & Sensitivitaetsanalyse Annahmequote")
+story += h2("13.1 Die zwei unabhaengigen Entscheidungen")
+story.append(body(
+    "Das System trifft bei jedem Kunden <b>zwei saubere, separate Entscheidungen</b> – "
+    "die oft verwechselt werden:"
+))
+for txt in [
+    "<b>Entscheidung 1 – Soll das Modell diesen Kunden flaggen?</b> → "
+    "Wird durch den Schwellenwert t=0.05 gesteuert (Schwellenwertanalyse, Modul 3). "
+    "Ziel: Minimierung der Klassifikationskosten C(FN)=CHF 2'000 vs. C(Alarm)=CHF 50.",
+    "<b>Entscheidung 2 – Soll diesem Kunden ein Rabattangebot gemacht werden?</b> → "
+    "Wird durch ROI > 0 gesteuert (Counterfactual-Engine, Skript 07). "
+    "Ziel: Nur Angebote machen, wo der erwartete Nutzen die Kosten uebertrifft.",
+]:
+    story.append(bullet(txt))
+
+story.append(body(
+    "Bei t=0.05 werden rund <b>1'216 Kunden</b> mit positivem ROI-Angebot kontaktiert "
+    "und erhalten einen personalisierten Rabatt. Weitere ca. <b>511 alarmierte Kunden</b> "
+    "werden vom Modell geflaggt, haben aber ROI &lt; 0 – sie werden in der Praxis "
+    "<b>gar nicht kontaktiert</b>, da kein rentables Angebot existiert. Damit entstehen "
+    "fuer diese Gruppe auch keine Kontaktkosten."
+))
+
+two_step_tbl = Table([
+    ["Gruppe",                             "Anzahl", "Entscheidung",       "Kostentreiber"],
+    ["Alarmiert & Angebot (ROI > 0)",      "~1'216", "Kontaktieren + Rabatt", "Campaign-Budget (CHF 277'707)"],
+    ["Alarmiert & kein Angebot (ROI < 0)", "~511",   "Kein Kontakt",       "CHF 0 (kein Anruf)"],
+    ["Nicht alarmiert (Low Risk)",         "~370",   "Kein Kontakt",       "Keine Kosten"],
+], colWidths=[5.5*cm, 2.3*cm, 4.0*cm, 5.7*cm])
+two_step_tbl.setStyle(table_style_base())
+story.append(spacer(0.2))
+story.append(two_step_tbl)
+story.append(caption(
+    "Tab. 6: Zwei-Stufen-Entscheidung bei t=0.05. Die 511 Kunden ohne positiven ROI "
+    "werden nicht kontaktiert – keine Kosten, kein Angebot. "
+    "Die C(Alarm)-Kosten in der Schwellenwertanalyse sind damit leicht konservativ."
+))
+story.append(box(
+    "Hinweis zur Schwellenwertanalyse: Die Alarm-Kosten im Modul 3 berechnen CHF 50 fuer "
+    "alle ~1'743 Alarme. In der Praxis werden jedoch nur die 1'216 Kunden mit positivem "
+    "ROI kontaktiert – die 511 ohne rentables Angebot werden gar nicht angerufen. "
+    "Die echten Kontaktkosten liegen damit bei 1'216 x CHF 50 = CHF 60'800 statt CHF 87'150. "
+    "Das Modell ist damit bewusst konservativ (leicht ueberschaetzte Alarm-Kosten)."
+))
+
+story.append(spacer(0.3))
+story += h2("13.2 Sensitivitaetsanalyse: Annahmequote des Retention-Angebots")
+story.append(body(
+    "Nicht jeder Kunde, dem ein Rabatt angeboten wird, nimmt dieses Angebot an. "
+    "Da Kosten und Ertraege proportional mit der Annahmequote skalieren, bleibt der "
+    "<b>ROI unveraendert</b> – die absoluten KPIs (gehaltene Kunden, Netto-Ertrag) "
+    "skalieren jedoch linear."
+))
+story.append(formula("Angepasste Ergebnisse = Basiswert (100%) x Annahmequote"))
+story.append(formula("ROI bleibt konstant: (Umsatz x ar - Kosten x ar) / (Kosten x ar) = ROI"))
+
+ACCEPTANCE_RATES_W = [0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 1.00]
+BASE_RETAINED  = targeted_retained
+BASE_REVENUE   = targeted_clv_saved
+BASE_COST      = targeted_budget
+BASE_NET       = targeted_net
+
+sens_data = [["Annahmequote", "Gehaltene Kunden", "Umsatz gerettet", "Kosten", "Netto-Ertrag", "ROI"]]
+for ar in ACCEPTANCE_RATES_W:
+    ret  = BASE_RETAINED * ar
+    rev  = BASE_REVENUE  * ar
+    cost = BASE_COST     * ar
+    net  = BASE_NET      * ar
+    sens_data.append([
+        f"{ar:.0%}",
+        f"{ret:.1f}",
+        f"CHF {rev:,.0f}",
+        f"CHF {cost:,.0f}",
+        f"CHF {net:,.0f}",
+        f"{targeted_roi:.0%}",
+    ])
+
+sens_tbl = Table(sens_data, colWidths=[2.8*cm, 3.2*cm, 3.5*cm, 3.2*cm, 3.5*cm, 2.3*cm])
+ts_sens = table_style_base()
+for row_i in range(1, len(sens_data)):
+    ts_sens.add("TEXTCOLOR", (4, row_i), (4, row_i), C_GREEN)
+    ts_sens.add("FONTNAME",  (4, row_i), (4, row_i), "Helvetica-Bold")
+    ts_sens.add("TEXTCOLOR", (5, row_i), (5, row_i), C_BLUE)
+    ts_sens.add("FONTNAME",  (5, row_i), (5, row_i), "Helvetica-Bold")
+sens_tbl.setStyle(ts_sens)
+story.append(spacer(0.2))
+story.append(sens_tbl)
+story.append(caption(
+    "Tab. 7: Sensitivitaetsanalyse – finanzielle KPIs bei verschiedenen Annahmequoten. "
+    "Gruene Werte = Netto-Ertrag, Blaue Werte = ROI (unveraendert). "
+    "Basis: 100% Annahmequote entspricht den vollen Modell-Prognosen."
+))
 
 story.append(spacer(0.5))
 story.append(HRFlowable(width="100%", thickness=1, color=C_LIGHT))

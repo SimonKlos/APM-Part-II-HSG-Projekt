@@ -520,6 +520,74 @@ fig.savefig(PLOTS_DIR / "08_churn_rate_vorher_nachher.png", bbox_inches="tight")
 plt.close(fig)
 
 # ---------------------------------------------------------------------------
+# Plot 9: Sensitivitaetsanalyse – Annahmequote des Retention-Angebots
+# ---------------------------------------------------------------------------
+print("Plot 9: Sensitivitaetsanalyse Annahmequote ...")
+
+ACCEPTANCE_RATES_9 = np.arange(0.05, 1.05, 0.05)
+
+retained_by_ar = targeted_retained  * ACCEPTANCE_RATES_9
+revenue_by_ar  = targeted_clv_saved * ACCEPTANCE_RATES_9
+cost_by_ar     = targeted_budget    * ACCEPTANCE_RATES_9
+net_by_ar      = targeted_net       * ACCEPTANCE_RATES_9
+
+fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+fig.patch.set_facecolor("white")
+
+# Panel A: Gehaltene Kunden
+axes[0].plot(ACCEPTANCE_RATES_9 * 100, retained_by_ar, color=C_GREEN, lw=2.5, marker="o", ms=4)
+axes[0].axvline(50, color="#aaaaaa", lw=1, ls="--")
+axes[0].text(51, retained_by_ar[int(len(ACCEPTANCE_RATES_9) * 0.5)],
+             "50%", fontsize=8.5, color="#888888")
+axes[0].set_xlabel("Annahmequote (%)", fontsize=11)
+axes[0].set_ylabel("Erwartete gehaltene Kunden", fontsize=11)
+axes[0].set_title("Gehaltene Kunden", fontsize=12, fontweight="bold", color=C_DARK)
+axes[0].xaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f"{v:.0f}%"))
+axes[0].set_facecolor("#fafafa")
+
+# Panel B: Umsatz vs. Kosten
+axes[1].plot(ACCEPTANCE_RATES_9 * 100, revenue_by_ar, color=C_BLUE,   lw=2.5, label="Umsatz gerettet")
+axes[1].plot(ACCEPTANCE_RATES_9 * 100, cost_by_ar,    color=C_ORANGE, lw=2,   ls="--", label="Rabattkosten")
+axes[1].plot(ACCEPTANCE_RATES_9 * 100, net_by_ar,     color=C_GREEN,  lw=2.5, label="Netto-Ertrag")
+axes[1].axhline(0, color="#888888", lw=1, ls=":")
+axes[1].set_xlabel("Annahmequote (%)", fontsize=11)
+axes[1].set_ylabel("CHF", fontsize=11)
+axes[1].set_title("Finanzkennzahlen", fontsize=12, fontweight="bold", color=C_DARK)
+axes[1].yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f"CHF {v:,.0f}"))
+axes[1].xaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f"{v:.0f}%"))
+axes[1].legend(fontsize=9, loc="upper left")
+axes[1].set_facecolor("#fafafa")
+
+# Panel C: ROI (konstant) mit Annotation
+roi_vals = np.full_like(ACCEPTANCE_RATES_9, targeted_roi)
+axes[2].plot(ACCEPTANCE_RATES_9 * 100, roi_vals * 100, color=C_PURPLE, lw=2.5)
+axes[2].fill_between(ACCEPTANCE_RATES_9 * 100, 0, roi_vals * 100,
+                     alpha=0.12, color=C_PURPLE)
+axes[2].axhline(0, color="#888888", lw=1, ls=":")
+axes[2].text(50, targeted_roi * 100 * 0.5,
+             f"ROI = {targeted_roi:.0%}\n(unveraendert bei\naller Annahmequoten)",
+             ha="center", va="center", fontsize=10, color=C_PURPLE, fontweight="bold",
+             bbox=dict(boxstyle="round,pad=0.3", facecolor="white", edgecolor=C_PURPLE, alpha=0.8))
+axes[2].set_xlabel("Annahmequote (%)", fontsize=11)
+axes[2].set_ylabel("ROI (%)", fontsize=11)
+axes[2].set_title("ROI (Skalierungsinvariant)", fontsize=12, fontweight="bold", color=C_DARK)
+axes[2].xaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f"{v:.0f}%"))
+axes[2].yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f"{v:.0f}%"))
+axes[2].set_ylim(0, targeted_roi * 100 * 1.3)
+axes[2].set_facecolor("#fafafa")
+
+fig.suptitle(
+    "Sensitivitaetsanalyse: Annahmequote des Retention-Angebots\n"
+    f"(Basis bei 100%: {targeted_retained:.0f} Kunden, "
+    f"CHF {targeted_clv_saved:,.0f} Umsatz gerettet, "
+    f"ROI {targeted_roi:.0%})",
+    fontsize=13, fontweight="bold", color=C_DARK
+)
+plt.tight_layout()
+fig.savefig(PLOTS_DIR / "09_sensitivitaet_annahmequote.png", bbox_inches="tight")
+plt.close(fig)
+
+# ---------------------------------------------------------------------------
 # Konsolen-Output: Verifikation aller Schlüsselzahlen gegen XGBoost
 # ---------------------------------------------------------------------------
 print()
@@ -543,8 +611,15 @@ print(f"High Risk:     {int((p_prob >= 0.7).sum())}       [Ref: ~487]")
 print(f"Medium Risk:   {int(((p_prob >= 0.4) & (p_prob < 0.7)).sum())}       [Ref: ~512]")
 print(f"Low Risk:      {int((p_prob < 0.4).sum())}      [Ref: ~1114]")
 print()
+flagged_total    = (recs["p_churn_original"] > 0.05).sum()
+flagged_with_roi = ((recs["p_churn_original"] > 0.05) & (recs["discount_id"] != "none")).sum()
+flagged_no_roi   = ((recs["p_churn_original"] > 0.05) & (recs["discount_id"] == "none")).sum()
+print(f"\nZwei-Stufen-Entscheidung (t=0.05):")
+print(f"  Alarmierte Kunden gesamt:          {flagged_total:>6,}")
+print(f"  Kontaktiert mit Angebot (ROI > 0): {flagged_with_roi:>6,}  (echte Kontaktkosten: CHF {flagged_with_roi * 50:,.0f})")
+print(f"  Kein Kontakt (ROI < 0):            {flagged_no_roi:>6,}  (CHF 0 Kontaktkosten)")
 print(f"Kunden m. pos. ROI Rabatt: {(recs.discount_id != 'none').sum()}")
-print(f"davon High Risk + pos. ROI: {len(targeted_sub)}")
+print(f"davon targeted (t=0.05): {len(targeted_sub)}")
 print(f"Targeted Budget:  CHF {targeted_budget:,.0f}")
 print(f"Targeted Retained: {targeted_retained:.1f}")
 print(f"Targeted ROI:     {targeted_roi:.1%}  (24-Mt.-Basis)")

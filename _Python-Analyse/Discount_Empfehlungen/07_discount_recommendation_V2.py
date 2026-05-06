@@ -214,7 +214,7 @@ print(f"  Rabatt-Verteilung:\n{recs_df['discount_id'].value_counts().to_string()
 # ---------------------------------------------------------------------------
 # 4. Drei Beispielkunden auswaehlen
 # ---------------------------------------------------------------------------
-at_risk = recs_df[recs_df["p_churn_original"] > 0.5].copy()
+at_risk = recs_df[recs_df["p_churn_original"] > 0.05].copy()
 
 pool1 = at_risk[(at_risk["discount_id"] == "contract_2y") & (at_risk["risk_segment"] == "High Risk")]
 if pool1.empty:
@@ -270,8 +270,8 @@ blanket_clv_saved      = sum(blanket_revenues)
 blanket_net            = blanket_clv_saved - blanket_budget
 blanket_roi            = blanket_net / blanket_budget
 
-# Targeted: nur p_churn > 0.5, personalisierter Rabatt
-targeted_sub = recs_df[(recs_df["p_churn_original"] > 0.5) & (recs_df["discount_id"] != "none")]
+# Targeted: p_churn > 0.05 (optimaler Schwellenwert t=0.05), personalisierter Rabatt
+targeted_sub = recs_df[(recs_df["p_churn_original"] > 0.05) & (recs_df["discount_id"] != "none")]
 N_targeted         = len(targeted_sub)
 targeted_budget    = targeted_sub["cost_annual"].sum()
 targeted_retained  = targeted_sub["retention_lift"].sum()
@@ -305,6 +305,49 @@ comparison = {
 }
 
 # ---------------------------------------------------------------------------
+# Zwei-Stufen-Entscheidung: Flaggen (t=0.05) vs. Angebot (ROI > 0)
+# ---------------------------------------------------------------------------
+flagged          = recs_df[recs_df["p_churn_original"] > 0.05]
+flagged_with_roi = recs_df[(recs_df["p_churn_original"] > 0.05) & (recs_df["discount_id"] != "none")]
+flagged_no_roi   = recs_df[(recs_df["p_churn_original"] > 0.05) & (recs_df["discount_id"] == "none")]
+
+print(f"\n{'':=<60}")
+print(f"{'ZWEI-STUFEN-ENTSCHEIDUNG (t=0.05)':^60}")
+print(f"{'':=<60}")
+print(f"  Alarmierte Kunden (t=0.05):             {len(flagged):>6,}")
+print(f"  davon mit positivem ROI (werden kontakt.): {len(flagged_with_roi):>6,}")
+print(f"  davon ohne pos. ROI (KEIN Kontakt):     {len(flagged_no_roi):>6,}")
+print(f"  Echte Kontaktkosten: {len(flagged_with_roi):,} x CHF 50 = "
+      f"CHF {len(flagged_with_roi) * 50:,.0f}")
+print(f"  (vs. konservative Schaetzung: {len(flagged):,} x CHF 50 = "
+      f"CHF {len(flagged) * 50:,.0f})")
+print(f"{'':=<60}")
+
+# ---------------------------------------------------------------------------
+# Sensitivitaetsanalyse: Annahmequote des Retention-Angebots
+# ---------------------------------------------------------------------------
+# Die Annahmequote gibt an, welcher Anteil der 1'216 kontaktierten Kunden
+# das Rabattangebot tatsaechlich annimmt. Da Kosten und Ertraege proportional
+# skalieren, bleibt der ROI unveraendert.
+ACCEPTANCE_RATES = [0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 1.00]
+
+print(f"\n{'':=<82}")
+print(f"{'SENSITIVITAETSANALYSE: ANNAHMEQUOTE DES RETENTION-ANGEBOTS':^82}")
+print(f"{'':=<82}")
+print(f"{'Annahmequote':>14} {'Gehaltene Kunden':>18} {'Umsatz gerettet':>18} {'Kosten':>12} {'Netto-Ertrag':>14} {'ROI':>6}")
+print(f"{'':->82}")
+sensitivity_rows = []
+for ar in ACCEPTANCE_RATES:
+    ret  = targeted_retained  * ar
+    rev  = targeted_clv_saved * ar
+    cost = targeted_budget    * ar
+    net  = rev - cost
+    roi  = net / cost if cost > 0 else 0.0
+    sensitivity_rows.append((ar, ret, rev, cost, net, roi))
+    print(f"{ar:>14.0%} {ret:>18.1f} {rev:>18,.0f} {cost:>12,.0f} {net:>14,.0f} {roi:>6.1%}")
+print(f"{'':=<82}")
+
+# ---------------------------------------------------------------------------
 # 6. Hilfsfunktionen fuer PDF-Seiten
 # ---------------------------------------------------------------------------
 FONT_TITLE = {"fontsize": 22, "fontweight": "bold", "color": C_DARK}
@@ -325,7 +368,7 @@ def add_header_bar(fig, title, subtitle="", y_top=0.97, height=0.06, color=C_DAR
     ax.text(0.03, 0.6, title,    fontsize=14, fontweight="bold", color="white", va="center")
     ax.text(0.03, 0.2, subtitle, fontsize=9,  color="#cccccc",   va="center")
 
-def add_footer(fig, page_num, total=9):
+def add_footer(fig, page_num, total=10):
     ax = fig.add_axes([0, 0, 1, 0.025])
     ax.set_facecolor(C_LIGHT)
     ax.axis("off")
@@ -868,6 +911,81 @@ with PdfPages(pdf_path) as pdf:
     fig.text(0.5, 0.02,
              "Erstellt mit XGBoost Churn-Prognosemodell | St. Gallen, April 2026",
              ha="center", fontsize=9, color="#aaaaaa")
+
+    pdf.savefig(fig, bbox_inches="tight"); plt.close(fig)
+
+    # ── Seite 10: Sensitivitaetsanalyse Annahmequote ─────────────────────────
+    fig = new_page()
+    add_header_bar(fig, "6. Sensitivitaetsanalyse: Annahmequote",
+                   "Wie veraendern sich die KPIs je nach Anteil annehmender Kunden?")
+    add_footer(fig, 10)
+
+    fig.text(0.06, 0.86, "Einfluss der Annahmequote auf das Targeted-Programm", **FONT_HEAD)
+    sens_intro = (
+        f"Das System kontaktiert bei t=0.05 rund {len(flagged_with_roi):,} Kunden mit "
+        f"positivem ROI-Angebot.\n"
+        f"Die uebrigen {len(flagged_no_roi):,} alarmierten Kunden (ROI < 0) werden "
+        f"gar nicht angerufen – keine Kosten.\n"
+        f"Von den {len(flagged_with_roi):,} Kontaktierten nimmt nicht jeder das Angebot an.\n"
+        f"Da Kosten und Ertraege proportional skalieren, bleibt der ROI bei jeder "
+        f"Annahmequote konstant."
+    )
+    fig.text(0.06, 0.82, sens_intro, fontsize=10.5, color="#555555", linespacing=1.7)
+
+    # Tabelle
+    tbl_ax = fig.add_axes([0.04, 0.42, 0.92, 0.37])
+    tbl_ax.axis("off")
+    tbl_ax.set_xlim(0, 1); tbl_ax.set_ylim(0, 1)
+
+    col_w_s = [0.13, 0.19, 0.20, 0.16, 0.18, 0.14]
+    headers_s = ["Annahme-\nquote", "Gehaltene\nKunden", "Umsatz\ngerettet (CHF)",
+                 "Kosten\n(CHF)", "Netto-Ertrag\n(CHF)", "ROI"]
+
+    tbl_ax.add_patch(mpatches.Rectangle((0, 0.86), 1.0, 0.14,
+                                         facecolor=C_DARK, edgecolor="none"))
+    x_pos = 0.0
+    for h, w in zip(headers_s, col_w_s):
+        tbl_ax.text(x_pos + w / 2, 0.930, h, ha="center", va="center",
+                    fontsize=8.5, fontweight="bold", color="white",
+                    multialignment="center")
+        x_pos += w
+
+    row_h_s = 0.86 / len(sensitivity_rows)
+    for i, (ar, ret, rev, cost, net, roi) in enumerate(sensitivity_rows):
+        y = 0.86 - (i + 1) * row_h_s
+        bg = "#f8f9fa" if i % 2 == 0 else "white"
+        tbl_ax.add_patch(mpatches.Rectangle((0, y), 1.0, row_h_s,
+                                             facecolor=bg, edgecolor="#dddddd",
+                                             linewidth=0.4))
+        vals_s = [f"{ar:.0%}", f"{ret:.1f}", f"CHF {rev:,.0f}",
+                  f"CHF {cost:,.0f}", f"CHF {net:,.0f}", f"{roi:.1%}"]
+        x_pos = 0.0
+        for j, (v, w) in enumerate(zip(vals_s, col_w_s)):
+            col_val = C_GREEN if j == 4 and net >= 0 else (C_RED if j == 4 and net < 0 else C_DARK)
+            fw = "bold" if j == 0 or j == 4 else "normal"
+            tbl_ax.text(x_pos + w / 2, y + row_h_s / 2, v,
+                        ha="center", va="center", fontsize=9, color=col_val, fontweight=fw)
+            x_pos += w
+
+    # Liniendiagramm: Netto-Ertrag & Umsatz ueber Annahmequote
+    chart_ax = fig.add_axes([0.08, 0.06, 0.85, 0.31])
+    rates_pct   = [r[0] * 100 for r in sensitivity_rows]
+    nets        = [r[4] for r in sensitivity_rows]
+    revenues    = [r[2] for r in sensitivity_rows]
+    costs_line  = [r[3] for r in sensitivity_rows]
+
+    chart_ax.plot(rates_pct, revenues,   color=C_BLUE,   lw=2.5, marker="o", ms=5, label="Umsatz gerettet")
+    chart_ax.plot(rates_pct, nets,       color=C_GREEN,  lw=2.5, marker="s", ms=5, label="Netto-Ertrag")
+    chart_ax.plot(rates_pct, costs_line, color=C_ORANGE, lw=1.8, marker="^", ms=5, ls="--", label="Rabattkosten")
+    chart_ax.axhline(0, color="#bbbbbb", lw=1, ls=":")
+    chart_ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f"CHF {v:,.0f}"))
+    chart_ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f"{v:.0f}%"))
+    chart_ax.set_xlabel("Annahmequote (%)", fontsize=10)
+    chart_ax.set_title("Finanzielle KPIs in Abhaengigkeit der Annahmequote", fontsize=11,
+                        fontweight="bold", color=C_DARK, pad=6)
+    chart_ax.legend(fontsize=9, loc="upper left")
+    chart_ax.spines[["top", "right"]].set_visible(False)
+    chart_ax.set_facecolor("#fafafa")
 
     pdf.savefig(fig, bbox_inches="tight"); plt.close(fig)
 
