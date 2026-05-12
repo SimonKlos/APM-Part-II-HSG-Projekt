@@ -309,7 +309,7 @@ async function sc(text){
   const selC=scores[selCustIdx]||scores[0];
   const custCtx=scores.map(c=>`- ${c.name}: ${c.pct}% (${c.pct>=70?"HIGH":c.pct>=40?"MED":"LOW"}), ${c.contract==="Month-to-month"?"MtM":c.contract==="One year"?"1J":"2J"}, ${c.internet==="Fiber optic"?"Glasfaser":c.internet==="No"?"kein Internet":"DSL"}, ${c.tenure}Mt, CHF${c.monthly}${c.onlSec||c.techSup?", Support✓":""}${c.payment==="Electronic check"?", E-Check⚠":""}`).join("\n");
   const sys=`Du bist der DCP Pilot Dashboard KI-Assistent. Hilfst Markus Steiner bei Churn-Prävention.
-Dashboard hat 7 Module: 1=KPI Übersicht, 2=Kundenanalyse, 3=Segmente & Modell, 4=Discount Engine, 5=E-Mail, 6=CLV Monitor, 7=Survival Analysis.
+Dashboard hat 8 Module: 1=KPI Übersicht, 2=Kundenanalyse, 3=Segmente & Modell, 4=Discount Engine, 5=E-Mail, 6=CLV Monitor, 7=Survival Analysis, 8=Modell-Entwicklung & Vergleich (RF vs XGBoost, Confusion Matrix, 3 Challenges).
 Aktives Modell: ${MODS[model].name} (AUC ${MODS[model].metrics.auc}, Recall ${MODS[model].metrics.rec}%)
 Ausgewählt: ${selC.name} (${selC.pct}% Risiko)
 Kunden: ${custCtx}
@@ -337,7 +337,8 @@ function localBot(raw,sel,sc2){
   if(t.match(/segment|gruppe|cluster/))return`Modul 3: High Risk 484 Kunden (62.2% Churn, CHF 602K at risk), Medium 526 (34.6%), Low 1'103 (7.1%). Schwellenwerte: >70% High, 40-70% Medium, <40% Low.`;
   if(t.match(/clv|wert|revenue/))return`Modul 6: CLV = CHF 2'000. Revenue at Risk: CHF 3.74 Mio. (gesamt). Targeted-Programm: 1'216 Kunden, CHF 793'768 gerettet, CHF 516'061 Netto, ROI 186%.`;
   if(t.match(/schwellen|threshold/))return`Modul 3: Optimaler Schwellenwert t=0.05 → 98.8% Recall, CHF 101'150 Gesamtkosten (FN×2000 + Alarme×50). Standard t=0.50 kostet CHF 280'650.`;
-  return`Aktuell: ${sel.name} (${sel.pct}%). Navigation über das linke Menü. Modul 1 = KPI, 2 = Kunde, 3 = Segmente, 4 = Discount, 5 = E-Mail, 6 = CLV, 7 = Survival.`;
+  if(t.match(/modell|xgboost|random forest|rf|vergleich|confusion|challenge|imbalance|shap|algorithmus/))return`Modul 8 (Modell-Entwicklung): XGBoost Champion-Modell mit Recall 78.8% vs. RF 74.3% — 25 mehr Churner erkannt. 3 Kernchallenges: Class Imbalance (scale_pos_weight=3), Erklärbarkeit (SHAP), Schwellenwertoptimierung (t=0.05).`;
+  return`Aktuell: ${sel.name} (${sel.pct}%). Navigation über das linke Menü. Modul 1=KPI, 2=Kunde, 3=Segmente, 4=Discount, 5=E-Mail, 6=CLV, 7=Survival, 8=Modell-Entwicklung.`;
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -720,6 +721,71 @@ function pgDatabase(){
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// MODUL 8 – MODELL-ENTWICKLUNG & VERGLEICH
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function pgModelDev(){
+  const cm={rf:{tp:416,fp:343,fn:144,tn:1210},xgb:{tp:441,fp:412,fn:119,tn:1141}};
+  function cmGrid(d){
+    return`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">${[["TP · Churn erkannt",d.tp,"var(--green-dim)","var(--green)"],["FP · Alarm fälschlich",d.fp,"var(--amber-dim)","var(--amber)"],["FN · Churn verpasst ⚠",d.fn,"var(--red-dim)","var(--red)"],["TN · Korrekt kein Alarm",d.tn,"var(--card2)","var(--text2)"]].map(([l,v,bg,c])=>`<div style="padding:12px;background:${bg};border-radius:7px;text-align:center;border:1px solid var(--border)"><div style="font-family:var(--mono);font-size:20px;font-weight:700;color:${c}">${v}</div><div style="font-size:9px;color:var(--text3);margin-top:3px">${l}</div></div>`).join("")}</div>`;
+  }
+  const METHODS=["Log. Regression","Decision Tree","Random Forest","XGBoost ★","Neural Networks"];
+  const CRIT=[
+    ["Interpretierbarkeit","++","+","−","−","−−"],
+    ["Nichtlinearität","−","+","++","++","+++"],
+    ["Overfitting-Resistenz","++","−−","+","++","−"],
+    ["Class Imbalance","−","−","+","++","+"],
+    ["AUC-Performance","+","−","++","++","++"],
+    ["SHAP / Erklärbarkeit","nativ","nativ","post-hoc","nativ","−"],
+  ];
+  function rc(v){return{"+++":"var(--green)","++":"var(--cyan)","+":"var(--accent)","nativ":"var(--green)","post-hoc":"var(--amber)","−":"var(--text3)","−−":"var(--red)"}[v]||"var(--text2)";}
+  return`<div class="page-hdr"><div class="page-title">Modell-Entwicklung & Vergleich</div><div class="page-sub">Modul 8 · Methodenauswahl · Evaluierungsrahmen · Random Forest vs. XGBoost · 3 Kernchallenges</div></div>
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-title">Methodenvergleich — 5 Algorithmen</div>
+    <div style="overflow-x:auto">
+    <table class="tbl"><thead><tr><th>Kriterium</th>${METHODS.map(m=>`<th style="${m.includes("★")?"color:var(--green);background:rgba(14,159,110,.06)":""}">${m}</th>`).join("")}</tr></thead>
+    <tbody>${CRIT.map(([crit,...vals])=>`<tr><td style="font-weight:600;color:var(--text)">${crit}</td>${vals.map((v,i)=>`<td style="font-family:var(--mono);font-weight:700;color:${rc(v)};${i===3?"background:rgba(14,159,110,.04)":""}">${v}</td>`).join("")}</tr>`).join("")}
+    <tr><td style="font-weight:700;color:var(--text)">Fazit</td>${["Baseline","Nicht geeignet","Finalist","Champion ✓","Zu komplex"].map((v,i)=>`<td style="font-size:10px;${i===3?"color:var(--green);font-weight:700;background:rgba(14,159,110,.06)":"color:var(--text3)"}">${v}</td>`).join("")}</tr>
+    </tbody></table>
+    </div>
+    <div style="font-size:9.5px;color:var(--text3);margin-top:8px;padding:8px;background:var(--card2);border-radius:6px;border-left:3px solid var(--accent)">★ XGBoost kombiniert höchsten Recall (78.8%) mit nativer SHAP-Erklärbarkeit und robuster Behandlung von Class Imbalance — Schlüsseleigenschaften für dieses Churn-Prognose-Problem.</div>
+  </div>
+  <div class="grid-2" style="margin-bottom:14px">
+    <div class="card">
+      <div class="card-title">Random Forest — Confusion Matrix (t=0.50)</div>
+      <div style="font-size:9.5px;color:var(--text3);margin-bottom:4px">Testset: 2'113 Kunden · Tatsächliche Churner: 560 (26.5%)</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:10px;font-size:9px;text-align:center">
+        <div style="padding:3px;color:var(--text3)">↑ Predicted: Churn</div><div style="padding:3px;color:var(--text3)">↑ Predicted: No Churn</div>
+      </div>
+      ${cmGrid(cm.rf)}
+      <div style="margin-top:14px">${[["Accuracy","76.9%","var(--text)"],["Precision","54.8%","var(--amber)"],["Recall","74.3%","var(--cyan)"],["F1-Score","63.1%","var(--accent)"],["AUC-ROC","0.844","var(--green)"]].map(([l,v,c])=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)"><span style="font-size:11px;color:var(--text2)">${l}</span><span style="font-family:var(--mono);font-size:12px;font-weight:700;color:${c}">${v}</span></div>`).join("")}</div>
+      <div style="margin-top:10px;padding:8px 10px;background:var(--card2);border-radius:7px;border-left:3px solid var(--cyan)"><div style="font-size:9.5px;color:var(--text2);line-height:1.6"><strong>Funktionsprinzip:</strong> Baut 500 Entscheidungsbäume auf zufälligen Datensub-sets (Bagging) und mittelt ihre Prognosen. Jeder Baum sieht nur ~63% der Daten und ein zufälliges Feature-Subset — robuster gegen Overfitting als ein einzelner Baum.</div></div>
+    </div>
+    <div class="card" style="border:1px solid rgba(14,159,110,.25)">
+      <div class="card-title">XGBoost — Confusion Matrix (t=0.50) <span style="color:var(--green);font-size:9px;margin-left:6px">CHAMPION</span></div>
+      <div style="font-size:9.5px;color:var(--text3);margin-bottom:4px">Testset: 2'113 Kunden · Tatsächliche Churner: 560 (26.5%)</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:10px;font-size:9px;text-align:center">
+        <div style="padding:3px;color:var(--text3)">↑ Predicted: Churn</div><div style="padding:3px;color:var(--text3)">↑ Predicted: No Churn</div>
+      </div>
+      ${cmGrid(cm.xgb)}
+      <div style="margin-top:14px">${[["Accuracy","74.8%","var(--text)"],["Precision","51.8%","var(--amber)"],["Recall","78.8%","var(--green)"],["F1-Score","62.5%","var(--accent)"],["AUC-ROC","0.842","var(--green)"]].map(([l,v,c])=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)"><span style="font-size:11px;color:var(--text2)">${l}</span><span style="font-family:var(--mono);font-size:12px;font-weight:700;color:${c}">${v}</span></div>`).join("")}</div>
+      <div style="margin-top:10px;padding:8px 10px;background:rgba(14,159,110,.06);border-radius:7px;border-left:3px solid var(--green)"><div style="font-size:9.5px;color:var(--text2);line-height:1.6"><strong>Funktionsprinzip:</strong> Sequenzielles Boosting — jeder neue Baum korrigiert die Fehler des Vorgängers (Gradient Descent im Modellraum). Hyperparameter via GridSearch: max_depth=4, learning_rate=0.1, n_estimators=200, scale_pos_weight=3.</div></div>
+    </div>
+  </div>
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-title">Warum XGBoost als Champion-Modell?</div>
+    <div class="grid-3">
+      ${[["Recall +4.5 Pp","78.8% vs. 74.3%","XGBoost erkennt 25 mehr Churner (FN: 119 vs. 144). Bei CHF 2'000 FN-Kosten = CHF 50'000 weniger Verlust gegenüber Random Forest.","green"],["Recall > Precision","FN 40× teurer als FP","Ein verpasster Churner kostet CHF 2'000; ein Fehlalarm CHF 50. Das asymmetrische Kostenverhältnis macht Recall zur wichtigsten Metrik.","amber"],["Native SHAP","Keine Approximation nötig","XGBoost berechnet SHAP-Werte direkt aus der Baumstruktur. Das ermöglicht individuelle Kundenerklärungen wie in Modul 2 dargestellt.","cyan"]].map(([t,s,d,c])=>`<div style="padding:12px;background:var(--card2);border-radius:8px;border:1px solid var(--border);border-top:3px solid var(--${c})"><div style="font-size:12px;font-weight:700;margin-bottom:2px;color:var(--${c})">${t}</div><div style="font-size:10px;font-weight:600;color:var(--text);margin-bottom:6px">${s}</div><div style="font-size:10px;color:var(--text3);line-height:1.6">${d}</div></div>`).join("")}
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">3 Kernchallenges & Lösungsansätze</div>
+    <div class="grid-3">
+      ${[["01","Class Imbalance","73.5% Nicht-Churner vs. 26.5% Churner — ohne Gegenmaßnahmen lernt das Modell, immer «kein Churn» vorherzusagen (Accuracy-Paradox).","Lösung: scale_pos_weight=3 gewichtet Churner 3×, stratifizierter Train/Test-Split 70/30, Optimierung auf Recall/F1 statt Accuracy.","red"],["02","Erklärbarkeit","Stakeholder und Compliance vertrauen Black-Box-Modellen nicht. Jede Churn-Entscheidung muss nachvollziehbar sein.","Lösung: SHAP (SHapley Additive exPlanations) — verteilt den Modelloutput fair auf alle Features. Visualisiert als Waterfall-Chart pro Kunde in Modul 2.","purple"],["03","Schwellenwertoptimierung","Standard t=0.50 minimiert nicht die Gesamtkosten. FN (CHF 2'000) und FP (CHF 50) sind hochgradig asymmetrisch.","Lösung: Cost-Sensitive Threshold Analysis → t=0.05 minimiert C(gesamt)=CHF 101'150. Zweistufige Logik: (1) Flaggen via t=0.05, (2) Angebot nur wenn ROI>0.","amber"]].map(([n,t,prob,sol,c])=>`<div style="padding:14px;background:var(--card2);border-radius:8px;border:1px solid var(--border)"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><div style="width:24px;height:24px;border-radius:6px;background:var(--${c}-dim);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:10px;font-weight:700;color:var(--${c})">${n}</div><div style="font-size:12px;font-weight:700;color:var(--${c})">${t}</div></div><div style="font-size:10px;color:var(--text3);line-height:1.6;margin-bottom:8px"><strong style="color:var(--text2)">Problem:</strong> ${prob}</div><div style="font-size:10px;color:var(--text2);line-height:1.6;padding:8px;background:var(--card3);border-radius:6px;border-left:2px solid var(--${c})">${sol}</div></div>`).join("")}
+    </div>
+  </div>`;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // MAIN RENDER
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function render(){
@@ -738,6 +804,7 @@ function render(){
     ["email","05","Kommunikation","Modul 5"],
     ["clv","06","CLV Monitor","Modul 6"],
     ["survival","07","Survival Analysis","Modul 7"],
+    ["modeldev","08","Modell-Entwicklung","Modul 8"],
     null,
     ["database","DB","Kundendatenbank","Alle 7'043"],
     null,
@@ -753,6 +820,7 @@ function render(){
   else if(page==="email")pageContent=pgEmail(scores);
   else if(page==="clv")pageContent=pgCLV();
   else if(page==="survival")pageContent=pgSurvival();
+  else if(page==="modeldev")pageContent=pgModelDev();
   else if(page==="database")pageContent=pgDatabase();
   else if(page==="callback")pageContent=pgCallback(scores);
   else if(page==="notes")pageContent=pgNotes(scores);
@@ -798,7 +866,7 @@ function render(){
         ${chatTyping?`<div class="msg-bot"><div class="typing"><span></span><span></span><span></span></div></div>`:""}
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:4px;padding:8px 12px;border-top:1px solid var(--border)">
-        ${[["Risiko","Wer hat das höchste Risiko?"],["Discount","Bester Rabatt für aktuellen Kunden?"],["Wann?","Wann soll ich handeln?"],["KPIs","Erkläre die wichtigsten KPIs"],["Modell","Warum XGBoost statt RF?"]].map(([l,q])=>`<button onclick="sc('${q}')" style="font-size:10px;padding:4px 9px;border-radius:5px;background:var(--card2);border:1px solid var(--border);color:var(--text2);cursor:pointer;font-family:var(--sans);transition:all .12s" onmouseover="this.style.borderColor='var(--border2)';this.style.color='var(--text)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text2)'">${l}</button>`).join("")}
+        ${[["Risiko","Wer hat das höchste Risiko?"],["Discount","Bester Rabatt für aktuellen Kunden?"],["Wann?","Wann soll ich handeln?"],["KPIs","Erkläre die wichtigsten KPIs"],["Modell","Warum XGBoost statt RF?"],["SHAP","Wie funktioniert SHAP?"]].map(([l,q])=>`<button onclick="sc('${q}')" style="font-size:10px;padding:4px 9px;border-radius:5px;background:var(--card2);border:1px solid var(--border);color:var(--text2);cursor:pointer;font-family:var(--sans);transition:all .12s" onmouseover="this.style.borderColor='var(--border2)';this.style.color='var(--text)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text2)'">${l}</button>`).join("")}
       </div>
       <div class="chat-input-row">
         <input class="ci" id="ci" placeholder="Frage stellen..." onkeydown="if(event.key==='Enter'){sc(this.value);this.value=''}">
