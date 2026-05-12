@@ -1,0 +1,44 @@
+============================================================
+  RABATT-EMPFEHLUNGS-SYSTEM V3 – ANNAHMEN & ERGEBNISSE
+  Erstellt: 2026-05-12
+============================================================
+
+MODELL & DATEN
+  Churn-Prognosemodell : XGBoost (trainiert auf Telco-Datensatz)
+  Testset              : 2,113 Kunden (2'113 von 7'043 gesamt)
+  Planungshorizont     : 24 Monate
+
+ANNAHMEN
+  Annahmequote (AR)    : 30% – Anteil Kunden, die das Angebot annehmen
+  Kontaktkosten        : CHF 50 pro aktivem Telefonkontakt (nur High Risk)
+                         CHF 0 fuer E-Mail-Kontakt (Medium Risk)
+  Basis-Rabatte        : 10% (1-Jahresvertrag), 15% (2-Jahresvertrag),
+                         CHF 5/Monat Cashback (Kreditkarte), 8% (Support-Paket)
+
+RISIKO-SEGMENTIERUNG & KONTAKTLOGIK
+  Low Risk   (Score < 40%) : kein Angebot, kein Kontakt
+  Medium Risk (Score 40%–70%): Angebot per E-Mail (CHF 0 Kontaktkosten)
+  High Risk  (Score > 70%) : aktiver Telefonkontakt (CHF 50 Kontaktkosten)
+  Angebot wird nur gemacht wenn ROI > 0 (segmentspezifisch berechnet)
+
+KUNDEN-UEBERSICHT (Testset, n = 2,113)
+  Low Risk  (kein Angebot) :   1,103 Kunden
+  Medium Risk (E-Mail)      :   526 Kunden  – davon mit pos. ROI: 501
+  High Risk   (Aktiv)       :   484 Kunden  – davon mit pos. ROI: 472
+  Gesamtkontakte            :   1,010 Kunden
+  Kontaktkosten High Risk   :   CHF 24,200
+
+ERGEBNISSE BEI AR = 30%
+                          Pauschal        Gezielt
+  Angesprochene Kunden  :    1,171           973
+  Kontaktkosten (CHF)   :     58,550      23,600
+  Discountkosten (CHF)  :     55,572      71,960
+  Gesamtkosten (CHF)    :    114,122      95,560
+  Umsatz gerettet (CHF) :    100,717     220,670
+  Nettonutzen (CHF)     :    -13,406     125,111
+  ROI                   :     -11.7%      130.9%
+
+HINWEIS: Bei der Sensitivitaetsanalyse variiert der ROI mit der Annahmequote,
+da Kontaktkosten (CHF 50 x 472 = CHF 23,600) unabhaengig
+von der Annahmequote anfallen.
+============================================================
