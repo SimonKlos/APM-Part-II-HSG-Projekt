@@ -254,7 +254,7 @@ const KM_DATA={
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // STATE
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-let model="xgb",page="modeldev",selCustIdx=0,showMailOv=false,mailStatus="idle";
+let model="xgb",page="overview",selCustIdx=0,showMailOv=false,mailStatus="idle";
 emailjs.init("rRk6aPHKn82v8MccC");
 let chatMsgs=[{r:"bot",t:"Hallo! Ich bin der DCP KI-Assistent. Ich kenne alle 7 Module des Dashboards und beantworte Fragen zu Kunden, Modellen, Discounts und Business Cases."}];
 let allCustomers=[],dbSearch="",dbSegment="all",dbContract="all",dbPage=0,dbTotalPages=1,dbSortCol="xgb",dbSortDir="desc";
@@ -309,7 +309,7 @@ async function sc(text){
   const selC=scores[selCustIdx]||scores[0];
   const custCtx=scores.map(c=>`- ${c.name}: ${c.pct}% (${c.pct>=70?"HIGH":c.pct>=40?"MED":"LOW"}), ${c.contract==="Month-to-month"?"MtM":c.contract==="One year"?"1J":"2J"}, ${c.internet==="Fiber optic"?"Glasfaser":c.internet==="No"?"kein Internet":"DSL"}, ${c.tenure}Mt, CHF${c.monthly}${c.onlSec||c.techSup?", Support✓":""}${c.payment==="Electronic check"?", E-Check⚠":""}`).join("\n");
   const sys=`Du bist der DCP Pilot Dashboard KI-Assistent. Hilfst Markus Steiner bei Churn-Prävention.
-Dashboard hat 8 Module: 1=Modell-Entwicklung & Vergleich (RF vs XGBoost, Confusion Matrix, 3 Challenges), 2=KPI Übersicht, 3=Kundenanalyse, 4=Segmente & Modell, 5=Discount Engine, 6=E-Mail, 7=CLV Monitor, 8=Survival Analysis.
+Dashboard hat eine übergreifende KPI-Übersicht (Startseite) und 7 Untermodule: 1=Detailansicht Modell (RF vs XGBoost, Confusion Matrix, 3 Challenges), 2=Kundenanalyse, 3=Segmente & Modell, 4=Discount Engine, 5=E-Mail, 6=CLV Monitor, 7=Survival Analysis.
 Aktives Modell: ${MODS[model].name} (AUC ${MODS[model].metrics.auc}, Recall ${MODS[model].metrics.rec}%)
 Ausgewählt: ${selC.name} (${selC.pct}% Risiko)
 Kunden: ${custCtx}
@@ -330,15 +330,15 @@ Antworte Deutsch, konkret, max 4 Sätze, keine Markdown-Sterne.`;
 }
 function localBot(raw,sel,sc2){
   const t=raw.toLowerCase();
-  for(const c of sc2){const p=c.name.toLowerCase().split(" ");if(p.some(x=>x.length>3&&t.includes(x))){const pos=c.drivers.filter(d=>d.c>0).slice(0,2).map(d=>DL[d.f]||d.f).join(", ");if(t.match(/empfeh|tun|massnahm|soll|vorge|action/)){const s=[];if(c.contract==="Month-to-month")s.push("2-Jahresvertrag +15% Rabatt");if(!c.techSup&&!c.onlSec)s.push("Gratis-Support 6 Monate");if(c.payment==="Electronic check")s.push("Auto-Zahlung");return`${c.name} (${c.pct}%): ${s.join(" · ")}. Modul 5 für Discount-Details.`;}return`${c.name}: ${c.pct}% Risiko. Treiber: ${pos}. ${c.pct>=70?"Sofort handeln!":c.pct>=40?"Diese Woche.":"Stabil."} → Modul 3 für Details.`;}}
-  if(t.match(/übersicht|kpi|overview/))return`Modul 2: Ø ${Math.round(sc2.reduce((s,c)=>s+c.pct,0)/sc2.length)}% Risiko, ${sc2.filter(c=>c.pct>=70).length} High-Risk-Kunden. Revenue at Risk CHF 3.74 Mio. Targeted ROI 131% (AR 30%).`;
-  if(t.match(/discount|rabatt|empfeh/))return`Modul 5 (Discount Engine): 2J-Vertrag −15% (ROI 132%), 1J −10% (113%), Support-Paket (117%), Kreditkarte-Umstieg (74%). Nur Rabatte mit ROI > 0 werden empfohlen.`;
-  if(t.match(/survival|wann|timing|kaplan/))return`Modul 8: Median Survival MtM = 35 Monate, 1J > 60 Mt, 2J > 72 Mt. Cox HR = 30.1× für Monatsverträge. Sweet Spot für Intervention: 6–12 Wochen vor erwartetem Churn.`;
-  if(t.match(/segment|gruppe|cluster/))return`Modul 4: High Risk 484 Kunden (62.2% Churn, CHF 602K at risk), Medium 526 (34.6%), Low 1'103 (7.1%). Schwellenwerte: >70% High, 40-70% Medium, <40% Low.`;
-  if(t.match(/clv|wert|revenue/))return`Modul 7: CLV = CHF 2'000. Revenue at Risk: CHF 3.74 Mio. (gesamt). Targeted-Programm (V3, AR 30%): 973 Kunden, CHF 220'670 gerettet, CHF 125'110 Netto, ROI 131%. Fixe Kontaktkosten CHF 23'600 (472 High-Risk × CHF 50).`;
-  if(t.match(/schwellen|threshold/))return`Modul 4: Optimaler Schwellenwert t=0.05 → 98.8% Recall, CHF 101'150 Gesamtkosten (FN×2000 + Alarme×50). Standard t=0.50 kostet CHF 280'650.`;
-  if(t.match(/modell|xgboost|random forest|rf|vergleich|confusion|challenge|imbalance|shap|algorithmus/))return`Modul 1 (Modell-Entwicklung): XGBoost Champion-Modell mit Recall 78.8% vs. RF 74.3% — 25 mehr Churner erkannt (442 vs. 417 von 561). 3 Kernchallenges: Class Imbalance (scale_pos_weight=2.77), Erklärbarkeit (SHAP nativ), Schwellenwertoptimierung (t=0.05).`;
-  return`Aktuell: ${sel.name} (${sel.pct}%). Navigation über das linke Menü. Modul 1=Modell-Entwicklung, 2=KPI, 3=Kunde, 4=Segmente, 5=Discount, 6=E-Mail, 7=CLV, 8=Survival.`;
+  for(const c of sc2){const p=c.name.toLowerCase().split(" ");if(p.some(x=>x.length>3&&t.includes(x))){const pos=c.drivers.filter(d=>d.c>0).slice(0,2).map(d=>DL[d.f]||d.f).join(", ");if(t.match(/empfeh|tun|massnahm|soll|vorge|action/)){const s=[];if(c.contract==="Month-to-month")s.push("2-Jahresvertrag +15% Rabatt");if(!c.techSup&&!c.onlSec)s.push("Gratis-Support 6 Monate");if(c.payment==="Electronic check")s.push("Auto-Zahlung");return`${c.name} (${c.pct}%): ${s.join(" · ")}. Modul 4 für Discount-Details.`;}return`${c.name}: ${c.pct}% Risiko. Treiber: ${pos}. ${c.pct>=70?"Sofort handeln!":c.pct>=40?"Diese Woche.":"Stabil."} → Modul 2 für Details.`;}}
+  if(t.match(/übersicht|kpi|overview/))return`KPI-Übersicht: Ø ${Math.round(sc2.reduce((s,c)=>s+c.pct,0)/sc2.length)}% Risiko, ${sc2.filter(c=>c.pct>=70).length} High-Risk-Kunden. Revenue at Risk CHF 3.74 Mio. Targeted ROI 131% (AR 30%).`;
+  if(t.match(/discount|rabatt|empfeh/))return`Modul 4 (Discount Engine): 2J-Vertrag −15% (ROI 132%), 1J −10% (113%), Support-Paket (117%), Kreditkarte-Umstieg (74%). Nur Rabatte mit ROI > 0 werden empfohlen.`;
+  if(t.match(/survival|wann|timing|kaplan/))return`Modul 7: Median Survival MtM = 35 Monate, 1J > 60 Mt, 2J > 72 Mt. Cox HR = 30.1× für Monatsverträge. Sweet Spot für Intervention: 6–12 Wochen vor erwartetem Churn.`;
+  if(t.match(/segment|gruppe|cluster/))return`Modul 3: High Risk 484 Kunden (62.2% Churn, CHF 602K at risk), Medium 526 (34.6%), Low 1'103 (7.1%). Schwellenwerte: >70% High, 40-70% Medium, <40% Low.`;
+  if(t.match(/clv|wert|revenue/))return`Modul 6: CLV = CHF 2'000. Revenue at Risk: CHF 3.74 Mio. (gesamt). Targeted-Programm (V3, AR 30%): 973 Kunden, CHF 220'670 gerettet, CHF 125'110 Netto, ROI 131%. Fixe Kontaktkosten CHF 23'600 (472 High-Risk × CHF 50).`;
+  if(t.match(/schwellen|threshold/))return`Modul 3: Optimaler Schwellenwert t=0.05 → 98.8% Recall, CHF 101'150 Gesamtkosten (FN×2000 + Alarme×50). Standard t=0.50 kostet CHF 280'650.`;
+  if(t.match(/modell|xgboost|random forest|rf|vergleich|confusion|challenge|imbalance|shap|algorithmus/))return`Modul 1 (Detailansicht Modell): XGBoost Champion-Modell mit Recall 78.8% vs. RF 74.3% — 25 mehr Churner erkannt (442 vs. 417 von 561). 3 Kernchallenges: Class Imbalance (scale_pos_weight=2.77), Erklärbarkeit (SHAP nativ), Schwellenwertoptimierung (t=0.05).`;
+  return`Aktuell: ${sel.name} (${sel.pct}%). Navigation über das linke Menü. Übergreifend=KPI, Modul 1=Detailansicht Modell, 2=Kundenanalyse, 3=Segmente, 4=Discount, 5=Kommunikation, 6=CLV, 7=Survival.`;
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -370,7 +370,7 @@ function pgOverview(scores){
   const high=scores.filter(c=>c.pct>=70),med=scores.filter(c=>c.pct>=40&&c.pct<70);
   const avg=Math.round(scores.reduce((s,c)=>s+c.pct,0)/scores.length);
   const m=MODS[model];
-  return`<div class="page-hdr"><div class="page-title">Executive KPI Dashboard</div><div class="page-sub">Modul 2 · Überblick Kundenloyalität & Modellperformance · IBM Telco Datensatz (7'043 Kunden)</div></div>
+  return`<div class="page-hdr"><div class="page-title">Executive KPI Dashboard</div><div class="page-sub">Übergreifend · Überblick Kundenloyalität & Modellperformance · IBM Telco Datensatz (7'043 Kunden)</div></div>
   <div class="kpi-grid kpi-5">
     <div class="kpi red"><div class="kpi-l">Gesamte Churn-Rate</div><div class="kpi-v" style="font-size:28px;color:var(--red)">26.5%</div><div class="kpi-s">1'869 von 7'043 Kunden</div></div>
     <div class="kpi red"><div class="kpi-l">High-Risk Kunden</div><div class="kpi-v" style="font-size:28px;color:var(--red)">484</div><div class="kpi-s">Score >70% · 22.9% des Portfolios</div></div>
@@ -403,7 +403,7 @@ function pgCustomer(scores){
   const maxAbs=Math.max(...wf.map(d=>Math.abs(d.c)),0.1);
   const baseScore=0.039;
   const mailLink=mailHref(sel);
-  return`<div class="page-hdr"><div class="page-title">Customer Risk Monitor</div><div class="page-sub">Modul 3 · Einzelkundenanalyse mit SHAP-Erklärung & Handlungsempfehlung</div></div>
+  return`<div class="page-hdr"><div class="page-title">Customer Risk Monitor</div><div class="page-sub">Modul 2 · Einzelkundenanalyse mit SHAP-Erklärung & Handlungsempfehlung</div></div>
   <div style="display:flex;gap:6px;margin-bottom:18px;flex-wrap:wrap">
     ${scores.map((c,i)=>`<button onclick="selCustIdx=${i};render()" style="display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:7px;border:1px solid ${i===selCustIdx?"var(--accent)":"var(--border)"};background:${i===selCustIdx?"rgba(68,114,245,.14)":"var(--card2)"};color:${i===selCustIdx?"var(--accent2)":"var(--text2)"};font-size:11px;font-weight:600;cursor:pointer;font-family:var(--sans);transition:all .12s">${c.pct>=70?`<span style="width:6px;height:6px;border-radius:50%;background:var(--red);flex-shrink:0;display:inline-block"></span>`:""}${c.name.split(" ")[0]}</button>`).join("")}
     <button onclick="selCustIdx=7;render()" style="padding:5px 12px;border-radius:7px;border:1px solid var(--border);background:var(--card2);color:var(--text2);font-size:11px;cursor:pointer;font-family:var(--sans)">Frau Mueller</button>
@@ -456,7 +456,7 @@ function pgCustomer(scores){
 
 function pgSegments(scores){
   const m=MODS[model];const tr=THRESH[threshSlider];
-  return`<div class="page-hdr"><div class="page-title">Segment Performance & Modell-Monitor</div><div class="page-sub">Modul 4 · Risikosegmente · Modellmetriken · Schwellenwertanalyse</div></div>
+  return`<div class="page-hdr"><div class="page-title">Segment Performance & Modell-Monitor</div><div class="page-sub">Modul 3 · Risikosegmente · Modellmetriken · Schwellenwertanalyse</div></div>
   <div class="grid-3" style="margin-bottom:14px">
     ${[["High Risk >70%",484,62.2,602,"red"],["Medium Risk 40–70%",526,34.6,364,"amber"],["Low Risk <40%",1103,7.1,157,"green"]].map(([l,n,cr,rar,c])=>`<div class="card"><div class="card-title">${l}</div><div style="font-family:var(--mono);font-size:28px;font-weight:700;color:var(--${c})">${n}</div><div style="font-size:10px;color:var(--text3);margin-top:3px">${(n/2113*100).toFixed(1)}% des Portfolios</div><div style="margin-top:10px;padding:8px;background:var(--card2);border-radius:6px"><div style="font-size:10px;color:var(--text2)">Validierte Churn-Rate: <strong style="color:var(--${c})">${cr}%</strong></div><div style="font-size:10px;color:var(--text2);margin-top:2px">Revenue at Risk: <strong>CHF ${rar}K</strong></div></div></div>`).join("")}
   </div>
@@ -499,7 +499,7 @@ function pgDiscount(scores){
   const disc=getModelDiscount(sel.name);
   const recs=discountRecs(sel,sel.pct);
   const discColors={"contract_2y":"var(--green)","contract_1y":"var(--cyan)","payment_switch":"var(--amber)","support_bundle":"var(--accent2)","senior_care":"var(--purple)"};
-  return`<div class="page-hdr"><div class="page-title">Discount Recommendation Engine</div><div class="page-sub">Modul 5 · Counterfactual-Simulation · ROI-optimierte Rabattempfehlung</div></div>
+  return`<div class="page-hdr"><div class="page-title">Discount Recommendation Engine</div><div class="page-sub">Modul 4 · Counterfactual-Simulation · ROI-optimierte Rabattempfehlung</div></div>
   <div class="grid-2" style="margin-bottom:14px">
     <div class="card"><div class="card-title">Blanket vs. Targeted (Effizienzvergleich)</div>
       ${[["Blanket-Programm","1'171 MtM-Kunden","CHF 114'122 Kosten (AR 30%)","−12% ROI","−CHF 13'405 Netto","amber"],["Targeted-Programm ★","973 Kunden (pos. ROI)","CHF 95'560 Kosten (AR 30%)","131% ROI","CHF 125'110 Netto","green"]].map(([t,k,b,r,n,c])=>`<div style="padding:12px;background:var(--card2);border-radius:8px;border:1px solid var(--border);margin-bottom:8px"><div style="font-size:11px;font-weight:700;color:var(--${c});margin-bottom:6px">${t}</div>${[k,b,r,n].map(x=>`<div style="font-size:10px;color:var(--text2)">${x}</div>`).join("")}</div>`).join("")}
@@ -533,7 +533,7 @@ function pgDiscount(scores){
 
 function pgEmail(scores){
   const highRisk=scores.filter(c=>c.pct>=70);
-  return`<div class="page-hdr"><div class="page-title">Automatische Kundenkommunikation</div><div class="page-sub">Modul 6 · Personalisierte E-Mail-Vorlagen nach Risikosegment</div></div>
+  return`<div class="page-hdr"><div class="page-title">Automatische Kundenkommunikation</div><div class="page-sub">Modul 5 · Personalisierte E-Mail-Vorlagen nach Risikosegment</div></div>
   <div class="grid-2" style="margin-bottom:14px">
     <div class="card"><div class="card-title">E-Mail-Vorlagen (3 Segmente)</div>
       ${[["High Risk >70%","badge-red","Exklusives Angebot — nur für Sie","Dringend, konkret, personalisierter Rabatt + Frist","Vertragstyp-Upgrade, Rabatt-%, neuer Preis, Gültig-bis"],["Medium Risk 40–70%","badge-amber","Neue Services für Ihren DCP-Vertrag","Einladend, informativ, keine Dringlichkeit","Aktueller Service, empfohlener Service"],["Retention-Nachfass","badge-accent","Ihr Feedback ist uns wichtig","Freundlich, kurz, NPS-Abfrage","NPS-Link (0–10)"]].map(([s,b,betr,ton,feld])=>`<div style="padding:10px;background:var(--card2);border-radius:8px;border:1px solid var(--border);margin-bottom:8px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span class="badge ${b}">${s}</span></div><div style="font-size:10px;color:var(--text2)"><strong>Betreff:</strong> ${betr}</div><div style="font-size:10px;color:var(--text2);margin-top:2px"><strong>Ton:</strong> ${ton}</div><div style="font-size:10px;color:var(--text3);margin-top:2px">Felder: ${feld}</div></div>`).join("")}
@@ -549,7 +549,7 @@ function pgCLV(){
   const rar_high=Math.round(484*0.622*clvVal);const rar_med=Math.round(526*0.346*clvVal);const rar_low=Math.round(1103*0.071*clvVal);const rar_total=rar_high+rar_med+rar_low;
   const kons=Math.round(0.6*0.3*1869*clvVal-50*1869*0.6);
   const opti=Math.round(0.8*0.4*1869*clvVal-50*1869*0.8);
-  return`<div class="page-hdr"><div class="page-title">Financial Performance & CLV Monitor</div><div class="page-sub">Modul 7 · Customer Lifetime Value · Revenue at Risk · Szenario-Simulation</div></div>
+  return`<div class="page-hdr"><div class="page-title">Financial Performance & CLV Monitor</div><div class="page-sub">Modul 6 · Customer Lifetime Value · Revenue at Risk · Szenario-Simulation</div></div>
   <div class="grid-2" style="margin-bottom:14px">
     <div class="card"><div class="card-title">CLV-Parameter (interaktiv)</div>
       <div class="form-row"><label>Customer Lifetime Value (CHF)</label><input type="range" min="500" max="5000" step="100" value="${clvVal}" oninput="clvVal=+this.value;render()"><div style="font-family:var(--mono);font-size:16px;font-weight:700;color:var(--accent2);margin-top:4px">CHF ${clvVal.toLocaleString("de-CH")}</div></div>
@@ -598,7 +598,7 @@ function pgSurvival(){
     <text x="${pad.l+uw*0.7}" y="${pad.t+uh*0.1}" font-size="8" fill="var(--green)">2 Jahre</text>
     <text x="${W/2}" y="${H-2}" text-anchor="middle" font-size="8" fill="var(--text3)">Monate</text>
   </svg>`;
-  return`<div class="page-hdr"><div class="page-title">Survival Analysis & Timing</div><div class="page-sub">Modul 8 · Kaplan-Meier-Kurven · Cox Hazard Ratios · Interventionsfenster</div></div>
+  return`<div class="page-hdr"><div class="page-title">Survival Analysis & Timing</div><div class="page-sub">Modul 7 · Kaplan-Meier-Kurven · Cox Hazard Ratios · Interventionsfenster</div></div>
   <div class="grid-2" style="margin-bottom:14px">
     <div class="card"><div class="card-title">Kaplan-Meier nach Vertragstyp</div>
       ${svg}
@@ -619,7 +619,7 @@ function pgSurvival(){
 }
 
 function pgCallback(scores){
-  return`<div class="page-hdr"><div class="page-title">Rückruf planen</div><div class="page-sub">Modul 3 · Kundenbetreuer-Workflow · Kalender-Export (.ics)</div></div>
+  return`<div class="page-hdr"><div class="page-title">Rückruf planen</div><div class="page-sub">Kundenbetreuer-Workflow · Kalender-Export (.ics)</div></div>
   <div class="grid-2">
     <div class="card">
       ${cbOk?`<div style="background:var(--green-dim);border:1px solid rgba(14,159,110,.2);border-radius:10px;padding:24px;text-align:center"><div style="font-size:32px;margin-bottom:10px">✅</div><div style="font-family:var(--display);font-size:16px;font-weight:700;color:var(--green);margin-bottom:6px">Rückruf geplant!</div><div style="font-size:11px;color:var(--text2);line-height:1.7">${cbForm.name}<br>${cbForm.date}, ${cbForm.time} Uhr · ${cbForm.priority}${cbForm.note?`<br><em>${cbForm.note}</em>`:""}</div><button onclick="cbOk=false;render()" style="margin-top:14px;padding:8px 20px;background:var(--accent);border:none;border-radius:7px;color:#fff;font-size:11px;font-weight:600;cursor:pointer;font-family:var(--sans)">Neuer Rückruf</button></div>`:`
@@ -632,7 +632,7 @@ function pgCallback(scores){
       <button onclick="if(!cbForm.name){alert('Kunden wählen');return;}makeICS(cbForm.name,cbForm.date,cbForm.time,cbForm.note);cbOk=true;render()" style="width:100%;padding:10px;background:var(--accent);border:none;border-radius:8px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--display);margin-top:4px">📞 Einplanen & Kalender öffnen</button>`}
     </div>
     <div class="card"><div class="card-title">Kundenbetreuer-Workflow</div>
-      ${[["1","Kunden-ID eingeben","Modul 3 öffnen → Churn-Score sofort sichtbar"],["2","SHAP lesen","Haupttreiber verstehen → Was treibt das Risiko?"],["3","Rabatt ermitteln","Modul 5 → ROI-optimalen Rabatt auswählen"],["4","Gespräch führen","Empfehlung in Kundengespräch einbringen"],["5","Ergebnis erfassen","Kampagnen-Tracker in Modul 7 aktualisieren"]].map(([n,t,d])=>`<div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)"><div style="width:22px;height:22px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0">${n}</div><div><div style="font-size:11px;font-weight:600">${t}</div><div style="font-size:10px;color:var(--text3)">${d}</div></div></div>`).join("")}
+      ${[["1","Kunden-ID eingeben","Modul 2 öffnen → Churn-Score sofort sichtbar"],["2","SHAP lesen","Haupttreiber verstehen → Was treibt das Risiko?"],["3","Rabatt ermitteln","Modul 4 → ROI-optimalen Rabatt auswählen"],["4","Gespräch führen","Empfehlung in Kundengespräch einbringen"],["5","Ergebnis erfassen","Kampagnen-Tracker in Modul 6 aktualisieren"]].map(([n,t,d])=>`<div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)"><div style="width:22px;height:22px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0">${n}</div><div><div style="font-size:11px;font-weight:600">${t}</div><div style="font-size:10px;color:var(--text3)">${d}</div></div></div>`).join("")}
     </div>
   </div>`;
 }
@@ -640,7 +640,7 @@ function pgCallback(scores){
 function pgNotes(scores){
   const sel=scores[selCustIdx]||scores[0];
   const selNotes=notes.filter(n=>n.customer===sel.name);
-  return`<div class="page-hdr"><div class="page-title">Team-Notizen</div><div class="page-sub">Modul 3 · Kundenspezifische Notizen von ${sel.name.split(" ")[0]}</div></div>
+  return`<div class="page-hdr"><div class="page-title">Team-Notizen</div><div class="page-sub">Kundenspezifische Notizen von ${sel.name.split(" ")[0]}</div></div>
   <div class="grid-2">
     <div class="card">
       <div class="card-title">Notiz für ${sel.name.split(" ")[0]} hinzufügen</div>
@@ -737,17 +737,7 @@ function pgModelDev(){
     ["Komplexität","++","++","−","−","−−"],
   ];
   function rc(v){return{"+++":"var(--green)","++":"var(--cyan)","+":"var(--accent)","nativ":"var(--green)","post-hoc":"var(--amber)","−":"var(--text3)","−−":"var(--red)"}[v]||"var(--text2)";}
-  return`<div class="page-hdr"><div class="page-title">Modell-Entwicklung & Vergleich</div><div class="page-sub">Modul 1 · Methodenauswahl · Evaluierungsrahmen · Random Forest vs. XGBoost · 3 Kernchallenges</div></div>
-  <div class="card" style="margin-bottom:14px">
-    <div class="card-title">Methodenvergleich — 5 Algorithmen</div>
-    <div style="overflow-x:auto">
-    <table class="tbl"><thead><tr><th>Kriterium</th>${METHODS.map(m=>`<th style="${m.includes("★")?"color:var(--green);background:rgba(14,159,110,.06)":""}">${m}</th>`).join("")}</tr></thead>
-    <tbody>${CRIT.map(([crit,...vals])=>`<tr><td style="font-weight:600;color:var(--text)">${crit}</td>${vals.map((v,i)=>`<td style="font-family:var(--mono);font-weight:700;color:${rc(v)};${i===3?"background:rgba(14,159,110,.04)":""}">${v}</td>`).join("")}</tr>`).join("")}
-    <tr><td style="font-weight:700;color:var(--text)">Fazit</td>${["Baseline","Nicht geeignet","Finalist","Champion ✓","Zu komplex"].map((v,i)=>`<td style="font-size:10px;${i===3?"color:var(--green);font-weight:700;background:rgba(14,159,110,.06)":"color:var(--text3)"}">${v}</td>`).join("")}</tr>
-    </tbody></table>
-    </div>
-    <div style="font-size:9.5px;color:var(--text3);margin-top:8px;padding:8px;background:var(--card2);border-radius:6px;border-left:3px solid var(--accent)">★ XGBoost kombiniert höchsten Recall (78.8%) mit nativer SHAP-Erklärbarkeit und robuster Behandlung von Class Imbalance — Schlüsseleigenschaften für dieses Churn-Prognose-Problem.</div>
-  </div>
+  return`<div class="page-hdr"><div class="page-title">Detailansicht Modell</div><div class="page-sub">Modul 1 · Methodenauswahl · Evaluierungsrahmen · Random Forest vs. XGBoost · 3 Kernchallenges</div></div>
   <div class="grid-2" style="margin-bottom:14px">
     <div class="card">
       <div class="card-title">Random Forest — Confusion Matrix (t=0.50)</div>
@@ -771,6 +761,16 @@ function pgModelDev(){
     </div>
   </div>
   <div class="card" style="margin-bottom:14px">
+    <div class="card-title">Methodenvergleich — 5 Algorithmen</div>
+    <div style="overflow-x:auto">
+    <table class="tbl"><thead><tr><th>Kriterium</th>${METHODS.map(m=>`<th style="${m.includes("★")?"color:var(--green);background:rgba(14,159,110,.06)":""}">${m}</th>`).join("")}</tr></thead>
+    <tbody>${CRIT.map(([crit,...vals])=>`<tr><td style="font-weight:600;color:var(--text)">${crit}</td>${vals.map((v,i)=>`<td style="font-family:var(--mono);font-weight:700;color:${rc(v)};${i===3?"background:rgba(14,159,110,.04)":""}">${v}</td>`).join("")}</tr>`).join("")}
+    <tr><td style="font-weight:700;color:var(--text)">Fazit</td>${["Baseline","Nicht geeignet","Finalist","Champion ✓","Zu komplex"].map((v,i)=>`<td style="font-size:10px;${i===3?"color:var(--green);font-weight:700;background:rgba(14,159,110,.06)":"color:var(--text3)"}">${v}</td>`).join("")}</tr>
+    </tbody></table>
+    </div>
+    <div style="font-size:9.5px;color:var(--text3);margin-top:8px;padding:8px;background:var(--card2);border-radius:6px;border-left:3px solid var(--accent)">★ XGBoost kombiniert höchsten Recall (78.8%) mit nativer SHAP-Erklärbarkeit und robuster Behandlung von Class Imbalance — Schlüsseleigenschaften für dieses Churn-Prognose-Problem.</div>
+  </div>
+  <div class="card" style="margin-bottom:14px">
     <div class="card-title">Warum XGBoost als Champion-Modell?</div>
     <div class="grid-3">
       ${[["Recall +4.5 Pp","78.8% vs. 74.3%","XGBoost erkennt 25 mehr Churner (FN: 119 vs. 144). Bei CHF 2'000 FN-Kosten = CHF 50'000 weniger Verlust gegenüber Random Forest.","green"],["Recall > Precision","FN 40× teurer als FP","Ein verpasster Churner kostet CHF 2'000; ein Fehlalarm CHF 50. Das asymmetrische Kostenverhältnis macht Recall zur wichtigsten Metrik.","amber"],["Native SHAP","Keine Approximation nötig","XGBoost berechnet SHAP-Werte direkt aus der Baumstruktur. Das ermöglicht individuelle Kundenerklärungen wie in Modul 2 dargestellt.","cyan"]].map(([t,s,d,c])=>`<div style="padding:12px;background:var(--card2);border-radius:8px;border:1px solid var(--border);border-top:3px solid var(--${c})"><div style="font-size:12px;font-weight:700;margin-bottom:2px;color:var(--${c})">${t}</div><div style="font-size:10px;font-weight:600;color:var(--text);margin-bottom:6px">${s}</div><div style="font-size:10px;color:var(--text3);line-height:1.6">${d}</div></div>`).join("")}
@@ -779,7 +779,7 @@ function pgModelDev(){
   <div class="card">
     <div class="card-title">3 Kernchallenges & Lösungsansätze</div>
     <div class="grid-3">
-      ${[["01","Class Imbalance","73.5% Nicht-Churner vs. 26.5% Churner — ohne Gegenmaßnahmen lernt das Modell, immer «kein Churn» vorherzusagen (Accuracy-Paradox).","Lösung: scale_pos_weight=2.77 gewichtet Churner stärker, stratifizierter Train/Test-Split 70/30, Optimierung auf Recall/F1 statt Accuracy.","red"],["02","Erklärbarkeit","Stakeholder und Compliance vertrauen Black-Box-Modellen nicht. Jede Churn-Entscheidung muss nachvollziehbar sein.","Lösung: SHAP (SHapley Additive exPlanations) — verteilt den Modelloutput fair auf alle Features. Visualisiert als Waterfall-Chart pro Kunde in Modul 3.","purple"],["03","Schwellenwertoptimierung","Standard t=0.50 minimiert nicht die Gesamtkosten. FN (CHF 2'000) und FP (CHF 50) sind hochgradig asymmetrisch.","Lösung: Cost-Sensitive Threshold Analysis → t=0.05 minimiert C(gesamt)=CHF 101'150. Zweistufige Logik: (1) Flaggen via t=0.05, (2) Angebot nur wenn ROI>0.","amber"]].map(([n,t,prob,sol,c])=>`<div style="padding:14px;background:var(--card2);border-radius:8px;border:1px solid var(--border)"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><div style="width:24px;height:24px;border-radius:6px;background:var(--${c}-dim);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:10px;font-weight:700;color:var(--${c})">${n}</div><div style="font-size:12px;font-weight:700;color:var(--${c})">${t}</div></div><div style="font-size:10px;color:var(--text3);line-height:1.6;margin-bottom:8px"><strong style="color:var(--text2)">Problem:</strong> ${prob}</div><div style="font-size:10px;color:var(--text2);line-height:1.6;padding:8px;background:var(--card3);border-radius:6px;border-left:2px solid var(--${c})">${sol}</div></div>`).join("")}
+      ${[["01","Class Imbalance","73.5% Nicht-Churner vs. 26.5% Churner — ohne Gegenmaßnahmen lernt das Modell, immer «kein Churn» vorherzusagen (Accuracy-Paradox).","Lösung: scale_pos_weight=2.77 gewichtet Churner stärker, stratifizierter Train/Test-Split 70/30, Optimierung auf Recall/F1 statt Accuracy.","red"],["02","Erklärbarkeit","Stakeholder und Compliance vertrauen Black-Box-Modellen nicht. Jede Churn-Entscheidung muss nachvollziehbar sein.","Lösung: SHAP (SHapley Additive exPlanations) — verteilt den Modelloutput fair auf alle Features. Visualisiert als Waterfall-Chart pro Kunde in Modul 2.","purple"],["03","Schwellenwertoptimierung","Standard t=0.50 minimiert nicht die Gesamtkosten. FN (CHF 2'000) und FP (CHF 50) sind hochgradig asymmetrisch.","Lösung: Cost-Sensitive Threshold Analysis → t=0.05 minimiert C(gesamt)=CHF 101'150. Zweistufige Logik: (1) Flaggen via t=0.05, (2) Angebot nur wenn ROI>0.","amber"]].map(([n,t,prob,sol,c])=>`<div style="padding:14px;background:var(--card2);border-radius:8px;border:1px solid var(--border)"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><div style="width:24px;height:24px;border-radius:6px;background:var(--${c}-dim);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:10px;font-weight:700;color:var(--${c})">${n}</div><div style="font-size:12px;font-weight:700;color:var(--${c})">${t}</div></div><div style="font-size:10px;color:var(--text3);line-height:1.6;margin-bottom:8px"><strong style="color:var(--text2)">Problem:</strong> ${prob}</div><div style="font-size:10px;color:var(--text2);line-height:1.6;padding:8px;background:var(--card3);border-radius:6px;border-left:2px solid var(--${c})">${sol}</div></div>`).join("")}
     </div>
   </div>`;
 }
@@ -796,14 +796,15 @@ function render(){
   const selFinal=(selCustIdx>=7?scores[scores.length-1]:scores[selCustIdx])||scores[0];
 
   const navItems=[
-    ["modeldev","01","Modell-Entwicklung","Modul 1"],
-    ["overview","02","KPI Übersicht","Modul 2"],
-    ["customer","03","Kundenanalyse","Modul 3"],
-    ["segments","04","Segmente & Modell","Modul 4"],
-    ["discount","05","Discount Engine","Modul 5"],
-    ["email","06","Kommunikation","Modul 6"],
-    ["clv","07","CLV Monitor","Modul 7"],
-    ["survival","08","Survival Analysis","Modul 8"],
+    ["overview","◎","KPI Übersicht",""],
+    "UNTERMODULE",
+    ["modeldev","01","Detailansicht Modell","Modul 1"],
+    ["customer","02","Kundenanalyse","Modul 2"],
+    ["segments","03","Segmente & Modell","Modul 3"],
+    ["discount","04","Discount Engine","Modul 4"],
+    ["email","05","Kommunikation","Modul 5"],
+    ["clv","06","CLV Monitor","Modul 6"],
+    ["survival","07","Survival Analysis","Modul 7"],
     null,
     ["database","DB","Kundendatenbank","Alle 7'043"],
     null,
@@ -845,8 +846,10 @@ function render(){
   </div>
   <div class="body">
     <div class="sidenav">
-      <div class="nav-section">Navigation</div>
-      ${navItems.map(item=>item===null?`<div class="nav-divider"></div>`:
+      ${navItems.map(item=>
+        item===null?`<div class="nav-divider"></div>`:
+        typeof item==="string"?`<div class="nav-section">${item}</div>`:
+        item[1]==="◎"?`<div class="nav-item ${page===item[0]?"active":""}" onclick="page='${item[0]}';render()" style="margin:6px 10px 4px;border-radius:8px;border:1px solid ${page===item[0]?"rgba(14,159,110,.3)":"rgba(255,255,255,.06)"};background:${page===item[0]?"rgba(14,159,110,.12)":"rgba(255,255,255,.03)"}"><div class="nav-num" style="font-size:12px">${item[1]}</div><div><div style="line-height:1.3;font-size:12px;font-weight:700;color:${page===item[0]?"#34d399":"#a0b4c8"}">${item[2]}</div></div></div>`:
         `<div class="nav-item ${page===item[0]?"active":""}" onclick="page='${item[0]}';render()"><div class="nav-num">${item[1]}</div><div><div style="line-height:1.3">${item[2]}</div>${item[3]?`<div style="font-size:9px;color:var(--text3);margin-top:1px">${item[3]}</div>`:""}</div></div>`
       ).join("")}
       <div style="flex:1"></div>
