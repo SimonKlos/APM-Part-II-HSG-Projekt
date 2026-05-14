@@ -406,14 +406,10 @@ function pgOverview(scores){
       ${[["High Risk >70%",484,62.2,"red",602],[" Medium Risk 40–70%",526,34.6,"amber",364],["Low Risk <40%",1103,7.1,"green",157]].map(([l,n,cr,c,rar])=>`<div style="margin-bottom:10px;padding:8px;background:var(--card2);border-radius:7px;border:1px solid var(--border)"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:11px;font-weight:600">${l}</span><span class="badge badge-${c}">${cr}% Churn</span></div><div style="font-size:10px;color:var(--text3);margin-top:3px">${n} Kunden · CHF ${rar}K at Risk</div></div>`).join("")}
     </div>
   </div>
-  <div class="grid-2">
-    <div class="card"><div class="card-title">Churn nach Tenure-Gruppe</div>
-      ${[["0–12 Monate",47.4,"red"],["13–24 Monate",28.7,"amber"],["25–48 Monate",20.4,"amber"],["49–72 Monate",9.5,"green"]].map(([l,v,c])=>`<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="font-size:11px">${l}</span><span style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--${c})">${v}%</span></div><div class="bar-bg"><div class="bar-fill" style="width:${v}%;background:var(--${c})"></div></div></div>`).join("")}
-      <div style="font-size:10px;color:var(--text3);margin-top:8px;padding:8px;background:var(--card2);border-radius:6px">⚠ Die ersten 12 Monate sind kritisch: fast 1 von 2 Neukunden kündigt.</div>
-    </div>
-    <div class="card"><div class="card-title">Szenario-Simulation</div>
-      ${[["Status Quo","0 Kunden gerettet","CHF −3.74 Mio.","red"],["Konservativ (60% Recall × 30% Save)","336 Kunden gerettet","CHF +615'950","amber"],["Optimistisch (80% Recall × 40% Save)","598 Kunden gerettet","CHF +1.12 Mio.","green"]].map(([t,k,v,c])=>`<div style="margin-bottom:10px;padding:10px;background:var(--card2);border-radius:7px;border:1px solid var(--border)"><div style="font-size:11px;font-weight:600;color:var(--${c});margin-bottom:3px">${t}</div><div style="font-size:10px;color:var(--text2)">${k}</div><div style="font-family:var(--mono);font-size:13px;font-weight:700;color:var(--${c});margin-top:2px">${v}</div></div>`).join("")}
-    </div>
+  <div class="card">
+    <div class="card-title">Churn nach Tenure-Gruppe</div>
+    ${[["0–12 Monate",47.4,"red"],["13–24 Monate",28.7,"amber"],["25–48 Monate",20.4,"amber"],["49–72 Monate",9.5,"green"]].map(([l,v,c])=>`<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="font-size:11px">${l}</span><span style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--${c})">${v}%</span></div><div class="bar-bg"><div class="bar-fill" style="width:${v}%;background:var(--${c})"></div></div></div>`).join("")}
+    <div style="font-size:10px;color:var(--text3);margin-top:8px;padding:8px;background:var(--card2);border-radius:6px">⚠ Die ersten 12 Monate sind kritisch: fast 1 von 2 Neukunden kündigt.</div>
   </div>`;
 }
 
