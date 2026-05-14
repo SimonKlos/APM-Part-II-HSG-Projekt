@@ -303,10 +303,23 @@ function updateKeyStatus(){const el=document.getElementById('keyStatus');if(!el)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 async function sc(text){
   if(!text||!text.trim())return;
-  chatMsgs.push({r:"usr",t:text});
-  chatTyping=true;render();
+  const t0=text.toLowerCase();
   const scores=getScores(model);
   const selC=scores[selCustIdx]||scores[0];
+  // ── Mail-intent intercept (never hits the API) ─────────────
+  if(t0.match(/\b(mail|schick|verschick|send)\b/)){
+    const mailTarget=scores.find(c=>c.name.toLowerCase().split(" ").some(x=>x.length>3&&t0.includes(x)))||
+      (t0.match(/aktuell|dieser|ihm|ihr/)? selC : null);
+    if(mailTarget){
+      chatMsgs.push({r:"usr",t:text});
+      chatMsgs.push({r:"bot",t:`Sende Retention-Mail an ${mailTarget.name} (${mailTarget.email}) — ${mailTarget.contract==="Month-to-month"?"2J-Vertrag −15%":"Retention-Angebot"}, CHF ${Math.round(mailTarget.monthly*0.15*24)} Ersparnis über 24 Monate.`});
+      render();
+      sendRetentionMail(mailTarget);
+      return;
+    }
+  }
+  chatMsgs.push({r:"usr",t:text});
+  chatTyping=true;render();
   function custDiscSummary(c){const md=getModelDiscount(c.name);if(md&&md.discount_id!=="none")return`→ ${md.discount_label} ROI ${Math.round(md.roi*100)}%`;const rd=discountRecs(c,c.pct).filter(r=>r.eligible&&r.type!=="Keine Rabatte verfügbar");return rd.length?`→ ${rd[0].type} ROI ${rd[0].roi}`:"→ kein Rabatt";}
   const custCtx=scores.map(c=>`- ${c.name}: ${c.pct}% (${c.pct>=70?"HIGH":c.pct>=40?"MED":"LOW"}), ${c.contract==="Month-to-month"?"MtM":c.contract==="One year"?"1J":"2J"}, ${c.tenure}Mt, CHF${c.monthly}${c.payment==="Electronic check"?", E-Check":""} ${custDiscSummary(c)}`).join("\n");
   const selDiscs=discountRecs(selC,selC.pct).filter(r=>r.eligible&&r.type!=="Keine Rabatte verfügbar");
@@ -334,6 +347,7 @@ Antworte Deutsch, konkret, max 4 Sätze, keine Markdown-Sterne.`;
 }
 function localBot(raw,sel,sc2){
   const t=raw.toLowerCase();
+  if(t.match(/\b(mail|schick|verschick|send)\b/))return`Mail-Versand: Tippe "Schick eine Retention-Mail an [Name]" oder nutze den ✉ Mail-Button oben.`;
   for(const c of sc2){const p=c.name.toLowerCase().split(" ");if(p.some(x=>x.length>3&&t.includes(x))){const pos=c.drivers.filter(d=>d.c>0).slice(0,2).map(d=>DL[d.f]||d.f).join(", ");if(t.match(/empfeh|tun|massnahm|soll|vorge|action|discount|rabatt/)){const modelD=getModelDiscount(c.name);if(modelD&&modelD.discount_id!=="none"){const roiPct=Math.round(modelD.roi*100);const liftPct=Math.round(modelD.retention_lift*100);const contact=c.pct>=70?"Telefonkontakt (CHF 50)":c.pct>=40?"E-Mail (CHF 0)":"kein Kontakt";return`${c.name} (${c.pct}%): ${modelD.discount_label} empfohlen (ROI ${roiPct}%, Retention-Lift ${liftPct}pp, Kosten CHF ${Math.round(modelD.cost_total)}). ${contact}. → Modul 4 für Details.`;}const recs=discountRecs(c,c.pct).filter(r=>r.eligible&&r.type!=="Keine Rabatte verfügbar");if(recs.length){const top=recs[0];const contact=c.pct>=70?"Telefonkontakt (CHF 50)":c.pct>=40?"E-Mail (CHF 0)":"kein Kontakt";return`${c.name} (${c.pct}%): ${top.type} empfohlen (ROI ${top.roi}, Lift ${top.lift}). ${contact}. → Modul 4 für alle Details.`;}return`${c.name} (${c.pct}%): Kein Rabatt mit positivem ROI verfügbar. ${c.pct>=70?"Trotzdem Telefonkontakt prüfen.":"Beobachten."}`;}return`${c.name}: ${c.pct}% Risiko. Treiber: ${pos}. ${c.pct>=70?"Sofort handeln!":c.pct>=40?"Diese Woche.":"Stabil."} → Modul 2 für Details.`;}}
   if(t.match(/übersicht|kpi|overview/))return`KPI-Übersicht: ${sc2.filter(c=>c.pct>=70).length} High-Risk-Kunden (CHF 602K at risk), ${sc2.filter(c=>c.pct>=40&&c.pct<70).length} Medium-Risk (CHF 364K). Targeted ROI 131%, Netto-Nutzen CHF 125'110 (AR 30%).`;
   if(t.match(/discount|rabatt|empfeh/))return`Modul 4 (Discount Engine): 2J-Vertrag −15% (ROI 132%), 1J −10% (113%), Support-Paket (117%), Kreditkarte-Umstieg (74%). Nur Rabatte mit ROI > 0 werden empfohlen.`;
@@ -875,7 +889,7 @@ function render(){
         ${chatTyping?`<div class="msg-bot"><div class="typing"><span></span><span></span><span></span></div></div>`:""}
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:4px;padding:8px 12px;border-top:1px solid var(--border)">
-        ${[["Risiko","Wer hat das höchste Risiko?"],["Discount","Bester Rabatt für aktuellen Kunden?"],["Wann?","Wann soll ich handeln?"],["KPIs","Erkläre die wichtigsten KPIs"],["Modell","Warum XGBoost statt RF?"],["SHAP","Wie funktioniert SHAP?"]].map(([l,q])=>`<button onclick="sc('${q}')" style="font-size:10px;padding:4px 9px;border-radius:5px;background:var(--card2);border:1px solid var(--border);color:var(--text2);cursor:pointer;font-family:var(--sans);transition:all .12s" onmouseover="this.style.borderColor='var(--border2)';this.style.color='var(--text)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text2)'">${l}</button>`).join("")}
+        ${(()=>{const _s=getScores(model),_sel=_s[selCustIdx]||_s[0];const btns=[["Risiko","Wer hat das höchste Risiko?"],["Discount","Bester Rabatt für aktuellen Kunden?"],["Wann?","Wann soll ich handeln?"],["Modell","Warum XGBoost statt RF?"],["SHAP","Wie funktioniert SHAP?"],["✉ Mail","Schick eine Retention-Mail an "+_sel.name]];return btns.map(([l,q])=>`<button onclick="sc('${q.replace(/'/g,"\\'")}')" style="font-size:10px;padding:4px 9px;border-radius:5px;background:${l.startsWith("✉")?"var(--green-dim)":"var(--card2)"};border:1px solid ${l.startsWith("✉")?"rgba(14,159,110,.3)":"var(--border)"};color:${l.startsWith("✉")?"#057a55":"var(--text2)"};cursor:pointer;font-family:var(--sans);font-weight:${l.startsWith("✉")?"600":"400"};transition:all .12s" onmouseover="this.style.borderColor='var(--border2)';this.style.color='var(--text)'" onmouseout="this.style.borderColor='${l.startsWith("✉")?"rgba(14,159,110,.3)":"var(--border)"}';this.style.color='${l.startsWith("✉")?"#057a55":"var(--text2)"}';">${l}</button>`).join("");})()}
       </div>
       <div class="chat-input-row">
         <input class="ci" id="ci" placeholder="Frage stellen..." onkeydown="if(event.key==='Enter'){sc(this.value);this.value=''}">
