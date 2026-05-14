@@ -259,7 +259,7 @@ emailjs.init("rRk6aPHKn82v8MccC");
 let chatMsgs=[{r:"bot",t:"Hallo! Ich bin der DCP KI-Assistent. Ich kenne alle 7 Module des Dashboards und beantworte Fragen zu Kunden, Modellen, Discounts und Business Cases."}];
 let allCustomers=[],dbSearch="",dbSegment="all",dbContract="all",dbPage=0,dbTotalPages=1,dbSortCol="xgb",dbSortDir="desc";
 const DB_PAGE_SIZE=50;
-let chatTyping=false;
+let chatTyping=false,chatOpen=true;
 let notes=[
   {customer:"Reto Hölzlberger",author:"Markus Steiner",text:"Neukunde seit 8 Monaten. Kein Kontakt vom Kundenservice. Sofortiger Handlungsbedarf.",time:"Heute, 09:14"},
   {customer:"Simon Klos",author:"Markus Steiner",text:"Jahresgespräch geführt — sehr zufrieden. Verlängerung bis 2027.",time:"Gestern, 14:30"},
@@ -308,10 +308,13 @@ async function sc(text){
   const scores=getScores(model);
   const selC=scores[selCustIdx]||scores[0];
   const custCtx=scores.map(c=>`- ${c.name}: ${c.pct}% (${c.pct>=70?"HIGH":c.pct>=40?"MED":"LOW"}), ${c.contract==="Month-to-month"?"MtM":c.contract==="One year"?"1J":"2J"}, ${c.internet==="Fiber optic"?"Glasfaser":c.internet==="No"?"kein Internet":"DSL"}, ${c.tenure}Mt, CHF${c.monthly}${c.onlSec||c.techSup?", Support✓":""}${c.payment==="Electronic check"?", E-Check⚠":""}`).join("\n");
+  const selDiscs=discountRecs(selC,selC.pct).filter(r=>r.eligible&&r.type!=="Keine Rabatte verfügbar");
+  const selModelDisc=getModelDiscount(selC.name);
+  const discCtx=selModelDisc?`Modell-Empfehlung: ${selModelDisc.discount_label} (ROI ${Math.round(selModelDisc.roi*100)}%, Retention-Lift ${Math.round(selModelDisc.retention_lift*100)}pp, Kosten CHF ${Math.round(selModelDisc.cost_total)}, geretteter Umsatz CHF ${Math.round(selModelDisc.revenue_saved)})`:selDiscs.length?`Discount Engine: ${selDiscs.map(r=>`${r.type} ROI ${r.roi} Lift ${r.lift} Kosten ${r.cost}`).join(" | ")}`:"Kein Rabatt mit positivem ROI verfügbar";
   const sys=`Du bist der DCP Pilot Dashboard KI-Assistent. Hilfst Markus Steiner bei Churn-Prävention.
 Dashboard hat eine übergreifende KPI-Übersicht (Startseite) und 7 Untermodule: 1=Detailansicht Modell (RF vs XGBoost, Confusion Matrix, 3 Challenges), 2=Kundenanalyse, 3=Segmente & Modell, 4=Discount Engine, 5=E-Mail, 6=CLV Monitor, 7=Survival Analysis.
 Aktives Modell: ${MODS[model].name} (AUC ${MODS[model].metrics.auc}, Recall ${MODS[model].metrics.rec}%)
-Ausgewählt: ${selC.name} (${selC.pct}% Risiko)
+Ausgewählt: ${selC.name} (${selC.pct}% Risiko, ${selC.pct>=70?"High Risk":selC.pct>=40?"Medium Risk":"Low Risk"}) - ${discCtx}
 Kunden: ${custCtx}
 Kontext: IBM Telco 7043 Kunden, Churn 26.5%, FN=CHF2000, FP=CHF50, Targeted ROI 131% (AR 30%), CLV CHF2000, High-Risk 484 (22.9%) 62.2% Churn, Medium 526 (24.9%) 34.6%, Low 1103 (52.2%) 7.1%, Schwellenwert 0.05 optimal CHF101'150 Gesamtkosten, V3: 973 targeted Kunden, CHF 125'110 Netto, CHF 23'600 fixe Kontaktkosten, Median Survival MtM=35Mt, Cox HR MtM=30.1x.
 Antworte Deutsch, konkret, max 4 Sätze, keine Markdown-Sterne.`;
@@ -330,8 +333,8 @@ Antworte Deutsch, konkret, max 4 Sätze, keine Markdown-Sterne.`;
 }
 function localBot(raw,sel,sc2){
   const t=raw.toLowerCase();
-  for(const c of sc2){const p=c.name.toLowerCase().split(" ");if(p.some(x=>x.length>3&&t.includes(x))){const pos=c.drivers.filter(d=>d.c>0).slice(0,2).map(d=>DL[d.f]||d.f).join(", ");if(t.match(/empfeh|tun|massnahm|soll|vorge|action/)){const s=[];if(c.contract==="Month-to-month")s.push("2-Jahresvertrag +15% Rabatt");if(!c.techSup&&!c.onlSec)s.push("Gratis-Support 6 Monate");if(c.payment==="Electronic check")s.push("Auto-Zahlung");return`${c.name} (${c.pct}%): ${s.join(" · ")}. Modul 4 für Discount-Details.`;}return`${c.name}: ${c.pct}% Risiko. Treiber: ${pos}. ${c.pct>=70?"Sofort handeln!":c.pct>=40?"Diese Woche.":"Stabil."} → Modul 2 für Details.`;}}
-  if(t.match(/übersicht|kpi|overview/))return`KPI-Übersicht: Ø ${Math.round(sc2.reduce((s,c)=>s+c.pct,0)/sc2.length)}% Risiko, ${sc2.filter(c=>c.pct>=70).length} High-Risk-Kunden. Revenue at Risk CHF 3.74 Mio. Targeted ROI 131% (AR 30%).`;
+  for(const c of sc2){const p=c.name.toLowerCase().split(" ");if(p.some(x=>x.length>3&&t.includes(x))){const pos=c.drivers.filter(d=>d.c>0).slice(0,2).map(d=>DL[d.f]||d.f).join(", ");if(t.match(/empfeh|tun|massnahm|soll|vorge|action|discount|rabatt/)){const modelD=getModelDiscount(c.name);if(modelD&&modelD.discount_id!=="none"){const roiPct=Math.round(modelD.roi*100);const liftPct=Math.round(modelD.retention_lift*100);const contact=c.pct>=70?"Telefonkontakt (CHF 50)":c.pct>=40?"E-Mail (CHF 0)":"kein Kontakt";return`${c.name} (${c.pct}%): ${modelD.discount_label} empfohlen (ROI ${roiPct}%, Retention-Lift ${liftPct}pp, Kosten CHF ${Math.round(modelD.cost_total)}). ${contact}. → Modul 4 für Details.`;}const recs=discountRecs(c,c.pct).filter(r=>r.eligible&&r.type!=="Keine Rabatte verfügbar");if(recs.length){const top=recs[0];const contact=c.pct>=70?"Telefonkontakt (CHF 50)":c.pct>=40?"E-Mail (CHF 0)":"kein Kontakt";return`${c.name} (${c.pct}%): ${top.type} empfohlen (ROI ${top.roi}, Lift ${top.lift}). ${contact}. → Modul 4 für alle Details.`;}return`${c.name} (${c.pct}%): Kein Rabatt mit positivem ROI verfügbar. ${c.pct>=70?"Trotzdem Telefonkontakt prüfen.":"Beobachten."}`;}return`${c.name}: ${c.pct}% Risiko. Treiber: ${pos}. ${c.pct>=70?"Sofort handeln!":c.pct>=40?"Diese Woche.":"Stabil."} → Modul 2 für Details.`;}}
+  if(t.match(/übersicht|kpi|overview/))return`KPI-Übersicht: ${sc2.filter(c=>c.pct>=70).length} High-Risk-Kunden (CHF 602K at risk), ${sc2.filter(c=>c.pct>=40&&c.pct<70).length} Medium-Risk (CHF 364K). Targeted ROI 131%, Netto-Nutzen CHF 125'110 (AR 30%).`;
   if(t.match(/discount|rabatt|empfeh/))return`Modul 4 (Discount Engine): 2J-Vertrag −15% (ROI 132%), 1J −10% (113%), Support-Paket (117%), Kreditkarte-Umstieg (74%). Nur Rabatte mit ROI > 0 werden empfohlen.`;
   if(t.match(/survival|wann|timing|kaplan/))return`Modul 7: Median Survival MtM = 35 Monate, 1J > 60 Mt, 2J > 72 Mt. Cox HR = 30.1× für Monatsverträge. Sweet Spot für Intervention: 6–12 Wochen vor erwartetem Churn.`;
   if(t.match(/segment|gruppe|cluster/))return`Modul 3: High Risk 484 Kunden (62.2% Churn, CHF 602K at risk), Medium 526 (34.6%), Low 1'103 (7.1%). Schwellenwerte: >70% High, 40-70% Medium, <40% Low.`;
@@ -371,11 +374,12 @@ function pgOverview(scores){
   const avg=Math.round(scores.reduce((s,c)=>s+c.pct,0)/scores.length);
   const m=MODS[model];
   return`<div class="page-hdr"><div class="page-title">Executive KPI Dashboard</div><div class="page-sub">Übergreifend · Überblick Kundenloyalität & Modellperformance · IBM Telco Datensatz (7'043 Kunden)</div></div>
-  <div class="kpi-grid kpi-5">
-    <div class="kpi red"><div class="kpi-l">Gesamte Churn-Rate</div><div class="kpi-v" style="font-size:28px;color:var(--red)">26.5%</div><div class="kpi-s">1'869 von 7'043 Kunden</div></div>
-    <div class="kpi red"><div class="kpi-l">High-Risk Kunden</div><div class="kpi-v" style="font-size:28px;color:var(--red)">484</div><div class="kpi-s">Score >70% · 22.9% des Portfolios</div></div>
-    <div class="kpi amb"><div class="kpi-l">Revenue at Risk</div><div class="kpi-v" style="font-size:22px;color:var(--amber)">CHF 3.74 Mio</div><div class="kpi-s">1'869 × CLV CHF 2'000</div></div>
-    <div class="kpi grn"><div class="kpi-l">Targeted ROI</div><div class="kpi-v" style="font-size:28px;color:var(--green)">131%</div><div class="kpi-s">bei AR 30% · vs. −12% Blanket</div></div>
+  <div class="kpi-grid kpi-3">
+    <div class="kpi red"><div class="kpi-l">High-Risk Kunden</div><div class="kpi-v" style="font-size:28px;color:var(--red)">484</div><div class="kpi-s">Score >70% · 22.9% des Portfolios · 62.2% Churn</div></div>
+    <div class="kpi red"><div class="kpi-l">Revenue at Risk – High Risk</div><div class="kpi-v" style="font-size:24px;color:var(--red)">CHF 602K</div><div class="kpi-s">484 × 62.2% Churn × CLV CHF 2'000</div></div>
+    <div class="kpi amb"><div class="kpi-l">Revenue at Risk – Medium Risk</div><div class="kpi-v" style="font-size:24px;color:var(--amber)">CHF 364K</div><div class="kpi-s">526 × 34.6% Churn × CLV CHF 2'000</div></div>
+    <div class="kpi grn"><div class="kpi-l">Targeted ROI</div><div class="kpi-v" style="font-size:28px;color:var(--green)">131%</div><div class="kpi-s">bei AR 30% · vs. −12% Blanket-Ansatz</div></div>
+    <div class="kpi grn"><div class="kpi-l">Nutzen Discount-System</div><div class="kpi-v" style="font-size:22px;color:var(--green)">CHF 125'110</div><div class="kpi-s">Netto-Nutzen bei AR 30% · 973 Kunden targeted</div></div>
     <div class="kpi acc"><div class="kpi-l">Modell AUC-ROC</div><div class="kpi-v" style="font-size:24px;color:var(--accent2)">${m.metrics.auc}</div><div class="kpi-s">${m.name} · Recall ${m.metrics.rec}%</div></div>
   </div>
   <div class="grid-2" style="margin-bottom:14px">
@@ -858,12 +862,14 @@ function render(){
       </div>
     </div>
     <div class="main" id="mainContent">${pageContent}</div>
-    <div style="width:282px;border-left:1px solid var(--border);display:flex;flex-direction:column;background:#fff">
-      <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
-        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--text3)">KI-Assistent</div>
-        <div style="display:flex;align-items:center;gap:5px"><div style="width:6px;height:6px;border-radius:50%;background:var(--green)"></div><span style="font-size:9px;color:var(--green);font-weight:600">Online</span></div>
+    <div style="width:${chatOpen?282:44}px;border-left:1px solid var(--border);display:flex;flex-direction:column;background:#fff;flex-shrink:0;overflow:hidden">
+      <div style="padding:10px ${chatOpen?16:8}px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;min-height:44px;gap:6px">
+        ${chatOpen?`<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--text3)">KI-Assistent</div>
+        <div style="display:flex;align-items:center;gap:6px"><div style="width:6px;height:6px;border-radius:50%;background:var(--green)"></div><span style="font-size:9px;color:var(--green);font-weight:600">Online</span>
+        <button onclick="chatOpen=false;render()" title="Chat einklappen" style="width:22px;height:22px;border-radius:5px;background:var(--card2);border:1px solid var(--border);cursor:pointer;font-size:13px;line-height:1;color:var(--text3);display:flex;align-items:center;justify-content:center;flex-shrink:0">›</button></div>`
+        :`<button onclick="chatOpen=true;render()" title="Chat ausklappen" style="width:26px;height:26px;border-radius:5px;background:var(--card2);border:1px solid var(--border);cursor:pointer;font-size:14px;line-height:1;color:var(--accent);display:flex;align-items:center;justify-content:center;margin:0 auto">‹</button>`}
       </div>
-      <div id="chatMsgs" style="flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:7px">
+      ${chatOpen?`<div id="chatMsgs" style="flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:7px">
         ${chatMsgs.map(m=>`<div class="${m.r==="bot"?"msg-bot":"msg-usr"}">${m.t}</div>`).join("")}
         ${chatTyping?`<div class="msg-bot"><div class="typing"><span></span><span></span><span></span></div></div>`:""}
       </div>
@@ -873,7 +879,9 @@ function render(){
       <div class="chat-input-row">
         <input class="ci" id="ci" placeholder="Frage stellen..." onkeydown="if(event.key==='Enter'){sc(this.value);this.value=''}">
         <button class="cs" onclick="const i=document.getElementById('ci');sc(i.value);i.value=''">↑</button>
-      </div>
+      </div>`:`<div style="flex:1;display:flex;flex-direction:column;align-items:center;padding-top:18px;gap:12px">
+        <div style="writing-mode:vertical-rl;transform:rotate(180deg);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--text3)">KI-Assistent</div>
+      </div>`}
     </div>
   </div>
   ${showMailOv?`<div class="ov" onclick="if(mailStatus!=='sending'){showMailOv=false;mailStatus='idle';render()}"><div class="ov-box" onclick="event.stopPropagation()">
