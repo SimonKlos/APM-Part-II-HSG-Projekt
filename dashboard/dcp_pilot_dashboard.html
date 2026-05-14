@@ -307,10 +307,11 @@ async function sc(text){
   chatTyping=true;render();
   const scores=getScores(model);
   const selC=scores[selCustIdx]||scores[0];
-  const custCtx=scores.map(c=>`- ${c.name}: ${c.pct}% (${c.pct>=70?"HIGH":c.pct>=40?"MED":"LOW"}), ${c.contract==="Month-to-month"?"MtM":c.contract==="One year"?"1J":"2J"}, ${c.internet==="Fiber optic"?"Glasfaser":c.internet==="No"?"kein Internet":"DSL"}, ${c.tenure}Mt, CHF${c.monthly}${c.onlSec||c.techSup?", Support✓":""}${c.payment==="Electronic check"?", E-Check⚠":""}`).join("\n");
+  function custDiscSummary(c){const md=getModelDiscount(c.name);if(md&&md.discount_id!=="none")return`→ ${md.discount_label} ROI ${Math.round(md.roi*100)}%`;const rd=discountRecs(c,c.pct).filter(r=>r.eligible&&r.type!=="Keine Rabatte verfügbar");return rd.length?`→ ${rd[0].type} ROI ${rd[0].roi}`:"→ kein Rabatt";}
+  const custCtx=scores.map(c=>`- ${c.name}: ${c.pct}% (${c.pct>=70?"HIGH":c.pct>=40?"MED":"LOW"}), ${c.contract==="Month-to-month"?"MtM":c.contract==="One year"?"1J":"2J"}, ${c.tenure}Mt, CHF${c.monthly}${c.payment==="Electronic check"?", E-Check":""} ${custDiscSummary(c)}`).join("\n");
   const selDiscs=discountRecs(selC,selC.pct).filter(r=>r.eligible&&r.type!=="Keine Rabatte verfügbar");
   const selModelDisc=getModelDiscount(selC.name);
-  const discCtx=selModelDisc?`Modell-Empfehlung: ${selModelDisc.discount_label} (ROI ${Math.round(selModelDisc.roi*100)}%, Retention-Lift ${Math.round(selModelDisc.retention_lift*100)}pp, Kosten CHF ${Math.round(selModelDisc.cost_total)}, geretteter Umsatz CHF ${Math.round(selModelDisc.revenue_saved)})`:selDiscs.length?`Discount Engine: ${selDiscs.map(r=>`${r.type} ROI ${r.roi} Lift ${r.lift} Kosten ${r.cost}`).join(" | ")}`:"Kein Rabatt mit positivem ROI verfügbar";
+  const discCtx=selModelDisc?`${selModelDisc.discount_label} (ROI ${Math.round(selModelDisc.roi*100)}%, Lift ${Math.round(selModelDisc.retention_lift*100)}pp)`:selDiscs.length?selDiscs.map(r=>`${r.type} ROI ${r.roi}`).join(" | "):"kein Rabatt";
   const sys=`Du bist der DCP Pilot Dashboard KI-Assistent. Hilfst Markus Steiner bei Churn-Prävention.
 Dashboard hat eine übergreifende KPI-Übersicht (Startseite) und 7 Untermodule: 1=Detailansicht Modell (RF vs XGBoost, Confusion Matrix, 3 Challenges), 2=Kundenanalyse, 3=Segmente & Modell, 4=Discount Engine, 5=E-Mail, 6=CLV Monitor, 7=Survival Analysis.
 Aktives Modell: ${MODS[model].name} (AUC ${MODS[model].metrics.auc}, Recall ${MODS[model].metrics.rec}%)
