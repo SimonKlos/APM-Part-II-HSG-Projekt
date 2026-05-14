@@ -181,28 +181,36 @@ function rco(p){return p>=70?"var(--red)":p>=40?"var(--amber)":"var(--green)"}
 function rl(p){return p>=70?"High Risk":p>=40?"Medium Risk":"Low Risk"}
 function rbc(p){return p>=70?"badge-red":p>=40?"badge-amber":"badge-green"}
 
-// DISCOUNT ENGINE
+// DISCOUNT ENGINE — V3 (segmentspezifische Kontaktkosten)
+// AR=30%, CC=CHF 50 fix für High Risk (Telefon), CHF 0 für Medium Risk (E-Mail)
+// ROI = (AR×lift×monthly×24 − expected_cost) / expected_cost
+// HIGH: expected_cost = 50 + AR×raw_disc_cost
+// MED:  expected_cost =      AR×raw_disc_cost
 function discountRecs(c,pct){
+  if(pct<40)return[{type:"Kein Angebot – Low Risk",eligible:false,recommended:false}];
+  const AR=0.30,CC=50,isHigh=pct>=70;
   const recs=[];
+  function push(type,target,rawCost,liftPp,costLabel){
+    const liftCapped=Math.min(liftPp,pct-5)/100;
+    const rev=Math.round(AR*liftCapped*c.monthly*24);
+    const expCost=Math.round(isHigh?(CC+AR*rawCost):AR*rawCost);
+    const roi=expCost>0?Math.round((rev-expCost)/expCost*100):-999;
+    recs.push({type,target,rawCost:Math.round(rawCost),expCost,expRev:rev,
+      lift:Math.round(liftPp)+"pp↓",cost:"CHF "+expCost,clvSave:"CHF "+rev,
+      roi:roi+"%",roiNum:roi,eligible:roi>0,recommended:false,
+      costLabel:costLabel||(isHigh?"Telefon +CHF 50":"E-Mail CHF 0")});
+  }
   if(c.contract==="Month-to-month"){
-    const cost2y=c.monthly*0.15*24;const newPct=Math.max(pct-35,5);const lift=pct-newPct;const save=lift/100*c.monthly*24;const roi=Math.round((save-cost2y)/cost2y*100);
-    recs.push({type:"2J-Vertrag −15%",target:"Monatsvertrag",cost:"CHF "+Math.round(cost2y),lift:lift+"%↓",clvSave:"CHF "+Math.round(save),roi:roi+"%",eligible:true,recommended:true});
-    const cost1y=c.monthly*0.10*24;const newPct1=Math.max(pct-20,5);const lift1=pct-newPct1;const save1=lift1/100*c.monthly*24;const roi1=Math.round((save1-cost1y)/cost1y*100);
-    recs.push({type:"1J-Vertrag −10%",target:"Monatsvertrag",cost:"CHF "+Math.round(cost1y),lift:lift1+"%↓",clvSave:"CHF "+Math.round(save1),roi:roi1+"%",eligible:true,recommended:false});
+    push("2J-Vertrag −15%","MtM-Kunden",c.monthly*0.15*24,isHigh?50:44);
+    push("1J-Vertrag −10%","MtM-Kunden",c.monthly*0.10*24,23);
   }
-  if(c.payment==="Electronic check"){
-    const cost=60;const newPct=Math.max(pct-15,5);const lift=pct-newPct;const save=lift/100*c.monthly*24;const roi=Math.round((save-cost)/cost*100);
-    recs.push({type:"Kreditkarte-Umstieg",target:"E-Check-Zahler",cost:"CHF 60 pausch.",lift:lift+"%↓",clvSave:"CHF "+Math.round(save),roi:roi+"%",eligible:true,recommended:false});
-  }
-  if(!c.techSup&&!c.onlSec&&c.internet!=="No"){
-    const cost=c.monthly*0.08*24;const newPct=Math.max(pct-12,5);const lift=pct-newPct;const save=lift/100*c.monthly*24;const roi=Math.round((save-cost)/cost*100);
-    recs.push({type:"Support-Paket −8%",target:"Kein Support",cost:"CHF "+Math.round(cost),lift:lift+"%↓",clvSave:"CHF "+Math.round(save),roi:roi+"%",eligible:true,recommended:false});
-  }
-  if(c.senior&&!c.partner&&!c.dep){
-    const cost=c.monthly*0.12*24;const newPct=Math.max(pct-18,5);const lift=pct-newPct;const save=lift/100*c.monthly*24;const roi=Math.round((save-cost)/cost*100);
-    recs.push({type:"Senior-Care −12%",target:"SeniorAlone",cost:"CHF "+Math.round(cost),lift:lift+"%↓",clvSave:"CHF "+Math.round(save),roi:roi+"%",eligible:true,recommended:false});
-  }
-  if(recs.length===0) recs.push({type:"Keine Rabatte verfügbar",eligible:false,recommended:false});
+  if(c.payment==="Electronic check")push("Kreditkarte-Umstieg","E-Check-Zahler",5*24,9);
+  if(!c.techSup&&!c.onlSec&&c.internet!=="No")push("Support-Paket −8%","Kein Support+Internet",c.monthly*0.08*24,19);
+  if(c.senior&&!c.partner&&!c.dep)push("Senior-Care −12%","Senior solo",c.monthly*0.12*24,18);
+  const eligible=recs.filter(r=>r.eligible);
+  if(eligible.length){eligible.sort((a,b)=>b.roiNum-a.roiNum);eligible[0].recommended=true;}
+  if(recs.length===0||(!eligible.length&&!recs.some(r=>r.type.startsWith("Kein"))))
+    recs.push({type:"Kein Rabatt mit positivem ROI",eligible:false,recommended:false});
   return recs;
 }
 
@@ -320,7 +328,7 @@ async function sc(text){
   }
   chatMsgs.push({r:"usr",t:text});
   chatTyping=true;render();
-  function custDiscSummary(c){const md=getModelDiscount(c.name);if(md&&md.discount_id!=="none")return`→ ${md.discount_label} ROI ${Math.round(md.roi*100)}%`;const rd=discountRecs(c,c.pct).filter(r=>r.eligible&&r.type!=="Keine Rabatte verfügbar");return rd.length?`→ ${rd[0].type} ROI ${rd[0].roi}`:"→ kein Rabatt";}
+  function custDiscSummary(c){const md=getModelDiscount(c.name);if(md&&md.discount_id!=="none")return`→ ${md.discount_label} ROI ${Math.round(md.roi*100)}%`;const rd=discountRecs(c,c.pct);const top=rd.find(r=>r.recommended)||rd.find(r=>r.eligible);return top?`→ ${top.type} ROI ${top.roi}`:"→ kein Rabatt";}
   const custCtx=scores.map(c=>`- ${c.name}: ${c.pct}% (${c.pct>=70?"HIGH":c.pct>=40?"MED":"LOW"}), ${c.contract==="Month-to-month"?"MtM":c.contract==="One year"?"1J":"2J"}, ${c.tenure}Mt, CHF${c.monthly}${c.payment==="Electronic check"?", E-Check":""} ${custDiscSummary(c)}`).join("\n");
   const selDiscs=discountRecs(selC,selC.pct).filter(r=>r.eligible&&r.type!=="Keine Rabatte verfügbar");
   const selModelDisc=getModelDiscount(selC.name);
@@ -348,7 +356,7 @@ Antworte Deutsch, konkret, max 4 Sätze, keine Markdown-Sterne.`;
 function localBot(raw,sel,sc2){
   const t=raw.toLowerCase();
   if(t.match(/\b(mail|schick|verschick|send)\b/))return`Mail-Versand: Tippe "Schick eine Retention-Mail an [Name]" oder nutze den ✉ Mail-Button oben.`;
-  for(const c of sc2){const p=c.name.toLowerCase().split(" ");if(p.some(x=>x.length>3&&t.includes(x))){const pos=c.drivers.filter(d=>d.c>0).slice(0,2).map(d=>DL[d.f]||d.f).join(", ");if(t.match(/empfeh|tun|massnahm|soll|vorge|action|discount|rabatt/)){const modelD=getModelDiscount(c.name);if(modelD&&modelD.discount_id!=="none"){const roiPct=Math.round(modelD.roi*100);const liftPct=Math.round(modelD.retention_lift*100);const contact=c.pct>=70?"Telefonkontakt (CHF 50)":c.pct>=40?"E-Mail (CHF 0)":"kein Kontakt";return`${c.name} (${c.pct}%): ${modelD.discount_label} empfohlen (ROI ${roiPct}%, Retention-Lift ${liftPct}pp, Kosten CHF ${Math.round(modelD.cost_total)}). ${contact}. → Modul 4 für Details.`;}const recs=discountRecs(c,c.pct).filter(r=>r.eligible&&r.type!=="Keine Rabatte verfügbar");if(recs.length){const top=recs[0];const contact=c.pct>=70?"Telefonkontakt (CHF 50)":c.pct>=40?"E-Mail (CHF 0)":"kein Kontakt";return`${c.name} (${c.pct}%): ${top.type} empfohlen (ROI ${top.roi}, Lift ${top.lift}). ${contact}. → Modul 4 für alle Details.`;}return`${c.name} (${c.pct}%): Kein Rabatt mit positivem ROI verfügbar. ${c.pct>=70?"Trotzdem Telefonkontakt prüfen.":"Beobachten."}`;}return`${c.name}: ${c.pct}% Risiko. Treiber: ${pos}. ${c.pct>=70?"Sofort handeln!":c.pct>=40?"Diese Woche.":"Stabil."} → Modul 2 für Details.`;}}
+  for(const c of sc2){const p=c.name.toLowerCase().split(" ");if(p.some(x=>x.length>3&&t.includes(x))){const pos=c.drivers.filter(d=>d.c>0).slice(0,2).map(d=>DL[d.f]||d.f).join(", ");if(t.match(/empfeh|tun|massnahm|soll|vorge|action|discount|rabatt/)){const modelD=getModelDiscount(c.name);if(modelD&&modelD.discount_id!=="none"){const roiPct=Math.round(modelD.roi*100);const liftPct=Math.round(modelD.retention_lift*100);const contact=c.pct>=70?"Telefonkontakt (CHF 50)":c.pct>=40?"E-Mail (CHF 0)":"kein Kontakt";return`${c.name} (${c.pct}%): ${modelD.discount_label} empfohlen (ROI ${roiPct}%, Retention-Lift ${liftPct}pp, Kosten CHF ${Math.round(modelD.cost_total)}). ${contact}. → Modul 4 für Details.`;}const recs=discountRecs(c,c.pct);const top=recs.find(r=>r.recommended)||recs.find(r=>r.eligible);if(top){const contact=c.pct>=70?"Telefonkontakt (CHF 50)":c.pct>=40?"E-Mail (CHF 0)":"kein Kontakt";return`${c.name} (${c.pct}%): ${top.type} empfohlen (ROI ${top.roi}, Lift ${top.lift}). ${contact}. → Modul 4 für alle Details.`;}return`${c.name} (${c.pct}%): Kein Rabatt mit positivem ROI verfügbar. ${c.pct>=70?"Trotzdem Telefonkontakt prüfen.":"Beobachten."}`;}return`${c.name}: ${c.pct}% Risiko. Treiber: ${pos}. ${c.pct>=70?"Sofort handeln!":c.pct>=40?"Diese Woche.":"Stabil."} → Modul 2 für Details.`;}}
   if(t.match(/übersicht|kpi|overview/))return`KPI-Übersicht: ${sc2.filter(c=>c.pct>=70).length} High-Risk-Kunden (CHF 602K at risk), ${sc2.filter(c=>c.pct>=40&&c.pct<70).length} Medium-Risk (CHF 364K). Targeted ROI 131%, Netto-Nutzen CHF 125'110 (AR 30%).`;
   if(t.match(/discount|rabatt|empfeh/))return`Modul 4 (Discount Engine): 2J-Vertrag −15% (ROI 132%), 1J −10% (113%), Support-Paket (117%), Kreditkarte-Umstieg (74%). Nur Rabatte mit ROI > 0 werden empfohlen.`;
   if(t.match(/survival|wann|timing|kaplan/))return`Modul 7: Median Survival MtM = 35 Monate, 1J > 60 Mt, 2J > 72 Mt. Cox HR = 30.1× für Monatsverträge. Sweet Spot für Intervention: 6–12 Wochen vor erwartetem Churn.`;
@@ -533,16 +541,16 @@ function pgDiscount(scores){
           </div>
         </div>
         <div style="font-size:10px;color:var(--text3);margin-bottom:10px">Weitere mögliche Massnahmen (Approximation):</div>
-        ${recs.filter(r=>r.eligible).map(r=>`<div style="padding:8px;background:var(--card2);border-radius:7px;border:1px solid var(--border);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center"><span style="font-size:10px;color:var(--text2)">${r.type}</span><div style="font-size:10px;color:var(--text3)">${r.cost} · ${r.lift}</div></div>`).join("")}`:
+        ${recs.filter(r=>r.eligible).map(r=>`<div style="padding:8px;background:var(--card2);border-radius:7px;border:1px solid var(--border);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center"><span style="font-size:10px;color:var(--text2)">${r.type}</span><div style="font-size:10px;color:var(--text3)">Erw. Kosten: ${r.cost} · Lift: ${r.lift}</div></div>`).join("")}`:
         disc&&disc.discount_id==="none"?`<div style="padding:10px;background:var(--card2);border-radius:8px;border:1px solid var(--border);font-size:10px;color:var(--text3);margin-bottom:10px">Kein positiver ROI verfügbar (Modell-Analyse).</div>
-        ${recs.map(r=>`<div style="padding:10px;background:${r.recommended?"rgba(14,159,110,.08)":"var(--card2)"};border-radius:8px;border:1px solid ${r.recommended?"rgba(14,159,110,.2)":"var(--border)"};margin-bottom:8px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><div style="font-size:11px;font-weight:700;color:${r.recommended?"var(--green)":"var(--text)"}">${r.recommended?"★ ":""}${r.type}</div>${r.roi?`<span class="badge badge-${parseInt(r.roi)>300?"green":parseInt(r.roi)>100?"amber":"accent"}">${r.roi} ROI</span>`:""}</div>${r.eligible?`<div style="display:flex;gap:12px;font-size:10px;color:var(--text2)"><span>Kosten: ${r.cost}</span><span>Lift: ${r.lift}</span><span>CLV: ${r.clvSave}</span></div>`:"<div style='font-size:10px;color:var(--text3)'>Nicht berechtigt</div>"}</div>`).join("")}`:
-        recs.map(r=>`<div style="padding:10px;background:${r.recommended?"rgba(14,159,110,.08)":"var(--card2)"};border-radius:8px;border:1px solid ${r.recommended?"rgba(14,159,110,.2)":"var(--border)"};margin-bottom:8px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><div style="font-size:11px;font-weight:700;color:${r.recommended?"var(--green)":"var(--text)"}">${r.recommended?"★ ":""}${r.type}</div>${r.roi?`<span class="badge badge-${parseInt(r.roi)>300?"green":parseInt(r.roi)>100?"amber":"accent"}">${r.roi} ROI</span>`:""}</div>${r.eligible?`<div style="display:flex;gap:12px;font-size:10px;color:var(--text2)"><span>Kosten: ${r.cost}</span><span>Lift: ${r.lift}</span><span>CLV: ${r.clvSave}</span></div>`:"<div style='font-size:10px;color:var(--text3)'>Nicht berechtigt</div>"}</div>`).join("")}
+        ${recs.map(r=>`<div style="padding:10px;background:${r.recommended?"rgba(14,159,110,.08)":"var(--card2)"};border-radius:8px;border:1px solid ${r.recommended?"rgba(14,159,110,.2)":"var(--border)"};margin-bottom:8px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><div style="font-size:11px;font-weight:700;color:${r.recommended?"var(--green)":"var(--text)"}">${r.recommended?"★ ":""}${r.type}</div>${r.roi?`<span class="badge badge-${parseInt(r.roi)>300?"green":parseInt(r.roi)>100?"amber":"accent"}">${r.roi} ROI</span>`:""}</div>${r.eligible?`<div style="display:flex;gap:12px;font-size:10px;color:var(--text2)"><span>Erw. Kosten: ${r.cost}</span><span>Lift: ${r.lift}</span><span>Erw. Umsatz: ${r.clvSave}</span></div>`:"<div style='font-size:10px;color:var(--text3)'>Nicht berechtigt</div>"}</div>`).join("")}`:
+        recs.map(r=>`<div style="padding:10px;background:${r.recommended?"rgba(14,159,110,.08)":"var(--card2)"};border-radius:8px;border:1px solid ${r.recommended?"rgba(14,159,110,.2)":"var(--border)"};margin-bottom:8px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><div style="font-size:11px;font-weight:700;color:${r.recommended?"var(--green)":"var(--text)"}">${r.recommended?"★ ":""}${r.type}</div>${r.roi?`<span class="badge badge-${parseInt(r.roi)>300?"green":parseInt(r.roi)>100?"amber":"accent"}">${r.roi} ROI</span>`:""}</div>${r.eligible?`<div style="display:flex;gap:12px;font-size:10px;color:var(--text2)"><span>Erw. Kosten: ${r.cost}</span><span>Lift: ${r.lift}</span><span>Erw. Umsatz: ${r.clvSave}</span></div>`:"<div style='font-size:10px;color:var(--text3)'>Nicht berechtigt</div>"}</div>`).join("")}
       ${sel.pct>=55?`<button onclick="sendRetentionMail()" class="btn btn-red" style="width:100%;justify-content:center;margin-top:8px">📧 Retention-Mail senden</button>`:"<div style='font-size:10px;color:var(--text3);margin-top:8px'>Risiko unter 55% — kein aktives Angebot nötig.</div>"}
     </div>
   </div>
   <div class="card"><div class="card-title">Rabatt-Katalog (alle 5 Typen)</div>
     <table class="tbl"><thead><tr><th>Rabatttyp</th><th>Zielgruppe</th><th>Kosten</th><th>Typischer ROI</th><th>Churn-Treiber</th></tr></thead><tbody>
-      ${[["2J-Vertrag −15%","MtM-Kunden","15% × Monatsgebühr × 24","132%","Vertragstyp"],["1J-Vertrag −10%","MtM-Kunden","10% × Monatsgebühr × 24","113%","Vertragstyp"],["Kreditkarten-Umstieg","E-Check-Zahler","CHF 60 pauschal","74%","Zahlungsart"],["Support-Paket −8%","Kein Support + Internet","8% × Monatsgebühr × 24","117%","Service-Bundle"]].map(([t,z,k,r,tr])=>`<tr><td>${t}</td><td style="color:var(--text3)">${z}</td><td style="font-family:var(--mono)">${k}</td><td style="font-family:var(--mono);color:var(--green)">${r}</td><td>${tr}</td></tr>`).join("")}
+      ${[["2J-Vertrag −15%","MtM-Kunden","15% × CHF/Mt. × 24 Mt.","132%","Vertragstyp"],["1J-Vertrag −10%","MtM-Kunden","10% × CHF/Mt. × 24 Mt.","113%","Vertragstyp"],["Kreditkarten-Umstieg","E-Check-Zahler","CHF 5/Mt. × 24 Mt. = CHF 120","74%","Zahlungsart"],["Support-Paket −8%","Kein Support + Internet","8% × CHF/Mt. × 24 Mt.","117%","Service-Bundle"]].map(([t,z,k,r,tr])=>`<tr><td>${t}</td><td style="color:var(--text3)">${z}</td><td style="font-family:var(--mono)">${k}</td><td style="font-family:var(--mono);color:var(--green)">${r}</td><td>${tr}</td></tr>`).join("")}
     </tbody></table>
   </div>`;
 }
